@@ -1,5 +1,6 @@
 # SQuAD project for NLP course
-##Michele Vece & Francesco Farinola
+
+Michele Vece & Francesco Farinola
 
 Version:
 
