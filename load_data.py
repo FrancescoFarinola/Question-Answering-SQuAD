@@ -6,7 +6,6 @@ from sklearn.model_selection import train_test_split
 
 
 def load_dataset():
-    print("Loading dataset...")
     path = './data'
     filename = "training_set.json"
 
@@ -58,7 +57,6 @@ def remove_2occ_rows(dataframe):
 
 
 def split_test_set(dataframe):
-    print("Splitting train and test set...")
     ts_df1 = remove_error_rows(dataframe, path="./data", filename="error IDs.txt")
     ts_df2 = remove_2occ_rows(dataframe)
     ts_df = pd.concat([ts_df1, ts_df2])
@@ -70,7 +68,6 @@ def split_test_set(dataframe):
 
 
 def split_validation_set(dataframe, rate):
-    print("Splitting train and validation set...")
     tr_title, val_title = train_test_split(np.unique(dataframe.title), test_size=rate, random_state=0)
     tr_idx = np.isin(dataframe.title, tr_title)
     val_idx = np.isin(dataframe.title, val_title)

@@ -1,10 +1,9 @@
 from keras.utils.vis_utils import plot_model
 from tensorflow.python.keras.callbacks import EarlyStopping
 from tensorflow.python.keras.utils.np_utils import to_categorical
+from tensorflow import one_hot
 import load_data
 import preprocess
-import basemodel
-import pandas as pd
 import utils
 import drqa_model
 import bidaf_model
@@ -14,19 +13,21 @@ import io
 import json
 
 
-EMBEDDING_DIM = 100
-UNITS = int(EMBEDDING_DIM/2)
+EMBEDDING_DIM = 300
 
 
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
+    print("Loading dataset...")
     dataframe = load_data.load_dataset()
     print(dataframe.shape)
 
+    print("Splitting train and test set...")
     train_df, test_df = load_data.split_test_set(dataframe)
     print(train_df.shape, test_df.shape)
 
+    print("Splitting train and validation set...")
     train_df, val_df = load_data.split_validation_set(train_df, rate=0.2)
     print(train_df.shape, val_df.shape)
 
@@ -89,21 +90,23 @@ if __name__ == '__main__':
         ner_listing = ["PERSON", "NORP", "FAC", "ORG", "GPE", "LOC", "PRODUCT", "EVENT", "WORK_OF_ART", "LAW",
                        "LANGUAGE", "DATE", "TIME", "PERCENT", "MONEY", "QUANTITY", "ORDINAL", "CARDINAL"]
 
-        train_em_input = utils.compute_exact_match(train_df1, MAX_CONTEXT_LENGTH)
-        train_tf_input = utils.compute_tf(train_df1, MAX_CONTEXT_LENGTH)
-        val_em_input = utils.compute_exact_match(val_df1, MAX_CONTEXT_LENGTH)
-        val_tf_input = utils.compute_tf(val_df1, MAX_CONTEXT_LENGTH, train_set=False)
-
         tag2idx, idx2tag = utils.create_pos_dicts(pos_listing)
         ner2idx, idx2ner = utils.create_ner_dicts(ner_listing)
 
-        train_pos_input = utils.compute_pos(train_df1, tag2idx, MAX_CONTEXT_LENGTH)
-        val_pos_input = utils.compute_pos(val_df1, tag2idx, MAX_CONTEXT_LENGTH)
         pos_embedding_matrix = to_categorical(list(idx2tag.keys()))
-
-        train_ner_input = utils.compute_ner(train_df1, ner2idx, MAX_CONTEXT_LENGTH)
-        val_ner_input = utils.compute_ner(val_df1, ner2idx, MAX_CONTEXT_LENGTH)
         ner_embedding_matrix = to_categorical(list(idx2ner.keys()))
+
+        print("Extracting features for Train Set")
+        train_em_input = utils.compute_exact_match(train_df1, MAX_CONTEXT_LENGTH)
+        train_tf_input = utils.compute_tf(train_df1, MAX_CONTEXT_LENGTH)
+        train_pos_input = utils.compute_pos(train_df1, tag2idx, MAX_CONTEXT_LENGTH)
+        train_ner_input = utils.compute_ner(train_df1, ner2idx, MAX_CONTEXT_LENGTH)
+
+        print("Extracting features for Validation Set")
+        val_em_input = utils.compute_exact_match(val_df1, MAX_CONTEXT_LENGTH)
+        val_tf_input = utils.compute_tf(val_df1, MAX_CONTEXT_LENGTH)
+        val_pos_input = utils.compute_pos(val_df1, tag2idx, MAX_CONTEXT_LENGTH)
+        val_ner_input = utils.compute_ner(val_df1, ner2idx, MAX_CONTEXT_LENGTH)
 
 
         model = drqa_model.build_model(MAX_QUESTION_LENGTH, MAX_CONTEXT_LENGTH, EMBEDDING_DIM, embedding_matrix,
@@ -113,7 +116,6 @@ if __name__ == '__main__':
         model.summary()
         plot_model(model, rankdir='TB', show_shapes=True, show_dtype=True, to_file="/models/drqa.png")
 
-        from tensorflow import one_hot
         tr_s_one = one_hot(train_df1.s_idx, depth=MAX_CONTEXT_LENGTH)
         tr_e_one = one_hot(train_df1.e_idx, depth=MAX_CONTEXT_LENGTH)
         val_s_one = one_hot(val_df1.s_idx, depth=MAX_CONTEXT_LENGTH)
@@ -141,8 +143,6 @@ if __name__ == '__main__':
         model.summary()
         plot_model(model, rankdir='TB', show_shapes=True, show_dtype=True, to_file="./models/bidaf.png")
 
-        from tensorflow import one_hot
-
         tr_s_one = one_hot(train_df1.s_idx, depth=MAX_CONTEXT_LENGTH)
         tr_e_one = one_hot(train_df1.e_idx, depth=MAX_CONTEXT_LENGTH)
         val_s_one = one_hot(val_df1.s_idx, depth=MAX_CONTEXT_LENGTH)
@@ -169,21 +169,23 @@ if __name__ == '__main__':
         ner_listing = ["PERSON", "NORP", "FAC", "ORG", "GPE", "LOC", "PRODUCT", "EVENT", "WORK_OF_ART", "LAW",
                        "LANGUAGE", "DATE", "TIME", "PERCENT", "MONEY", "QUANTITY", "ORDINAL", "CARDINAL"]
 
-        train_em_input = utils.compute_exact_match(train_df1, MAX_CONTEXT_LENGTH)
-        train_tf_input = utils.compute_tf(train_df1, MAX_CONTEXT_LENGTH)
-        val_em_input = utils.compute_exact_match(val_df1, MAX_CONTEXT_LENGTH)
-        val_tf_input = utils.compute_tf(val_df1, MAX_CONTEXT_LENGTH, train_set=False)
-
         tag2idx, idx2tag = utils.create_pos_dicts(pos_listing)
         ner2idx, idx2ner = utils.create_ner_dicts(ner_listing)
 
-        train_pos_input = utils.compute_pos(train_df1, tag2idx, MAX_CONTEXT_LENGTH)
-        val_pos_input = utils.compute_pos(val_df1, tag2idx, MAX_CONTEXT_LENGTH)
         pos_embedding_matrix = to_categorical(list(idx2tag.keys()))
-
-        train_ner_input = utils.compute_ner(train_df1, ner2idx, MAX_CONTEXT_LENGTH)
-        val_ner_input = utils.compute_ner(val_df1, ner2idx, MAX_CONTEXT_LENGTH)
         ner_embedding_matrix = to_categorical(list(idx2ner.keys()))
+
+        print("Extracting features for Train Set")
+        train_em_input = utils.compute_exact_match(train_df1, MAX_CONTEXT_LENGTH)
+        train_tf_input = utils.compute_tf(train_df1, MAX_CONTEXT_LENGTH)
+        train_pos_input = utils.compute_pos(train_df1, tag2idx, MAX_CONTEXT_LENGTH)
+        train_ner_input = utils.compute_ner(train_df1, ner2idx, MAX_CONTEXT_LENGTH)
+
+        print("Extracting features for Validation Set")
+        val_em_input = utils.compute_exact_match(val_df1, MAX_CONTEXT_LENGTH)
+        val_tf_input = utils.compute_tf(val_df1, MAX_CONTEXT_LENGTH)
+        val_pos_input = utils.compute_pos(val_df1, tag2idx, MAX_CONTEXT_LENGTH)
+        val_ner_input = utils.compute_ner(val_df1, ner2idx, MAX_CONTEXT_LENGTH)
 
         char_embedding_matrix = utils.get_char_embeddings(df_word_listing, df_word_to_idx)
 
@@ -193,8 +195,6 @@ if __name__ == '__main__':
         model.compile(loss='categorical_crossentropy', optimizer='nadam', metrics='accuracy')
         model.summary()
         plot_model(model, rankdir='TB', show_shapes=True, show_dtype=True, to_file="./models/our_model.png")
-
-        from tensorflow import one_hot
 
         tr_s_one = one_hot(train_df1.s_idx, depth=MAX_CONTEXT_LENGTH)
         tr_e_one = one_hot(train_df1.e_idx, depth=MAX_CONTEXT_LENGTH)

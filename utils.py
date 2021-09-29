@@ -153,7 +153,7 @@ def pad(df_values, tokenizer, max_length):
 
 
 ##TF_IDF
-def compute_tf(df, MAX_CONTEXT_LENGTH, train_set=True):
+def compute_tf(df, MAX_CONTEXT_LENGTH):
     print("Computing normalized TF...")
     from sklearn.feature_extraction.text import CountVectorizer
     corpus = df.context.values
@@ -167,10 +167,7 @@ def compute_tf(df, MAX_CONTEXT_LENGTH, train_set=True):
         tfs.append([tf_context[i, vectorizer.vocabulary_[token]] for token in tokens])
     dict_context_tf = dict(zip(tmp.context, tfs))
     df_tf = df.context.apply(lambda x: dict_context_tf.get(x))
-    if train_set == True:
-        df_tf_padded = pad_sequences(df_tf, maxlen=MAX_CONTEXT_LENGTH, padding='post')
-    else:
-        df_tf_padded = pad_sequences(df_tf, maxlen=MAX_CONTEXT_LENGTH, padding='post', truncating='post')
+    df_tf_padded = pad_sequences(df_tf, maxlen=MAX_CONTEXT_LENGTH, padding='post', truncating='post')
     return df_tf_padded
 
 
@@ -258,7 +255,6 @@ def compute_pos(df, tag2idx, MAX_CONTEXT_LENGTH):
     print("Padding POS sequences...")
     padded_pos = pad_sequences(all, padding="post", value=tag2idx['<PAD>'],
                                maxlen=MAX_CONTEXT_LENGTH, truncating='post')
-
     dict_pos = dict(zip(df.context, padded_pos))
     pos_tmp = df.context.apply(lambda x: dict_pos.get(x))
     pos = np.array([t for t in pos_tmp])
