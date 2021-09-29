@@ -18,6 +18,7 @@ EMBEDDING_DIM = 300
 #MODEL = 'drqa'
 #MODEL = 'bidaf'
 MODEL = 'our_model'
+EPOCHS = 1
 
 
 # Press the green button in the gutter to run the script.
@@ -132,7 +133,7 @@ if __name__ == '__main__':
         y_val = {'start': val_s_one, 'end': val_e_one}
 
         mycb = EarlyStopping(patience=5, restore_best_weights=True)
-        model.fit(x_tr, y_tr, validation_data=(x_val, y_val), epochs=10, batch_size=16, callbacks=[mycb])
+        model.fit(x_tr, y_tr, validation_data=(x_val, y_val), epochs=EPOCHS, batch_size=16, callbacks=[mycb])
         model.save('./models/drqa')
 
     elif MODEL == "bidaf":
@@ -158,7 +159,7 @@ if __name__ == '__main__':
 
         mycb = EarlyStopping(patience=5, restore_best_weights=True)
 
-        model.fit(x_tr, y_tr, validation_data=(x_val, y_val), epochs=1, batch_size=16, callbacks=[mycb])
+        model.fit(x_tr, y_tr, validation_data=(x_val, y_val), epochs=EPOCHS, batch_size=16, callbacks=[mycb])
         model.save('./models/bidaf')
 
     elif MODEL == "our_model":
@@ -213,7 +214,7 @@ if __name__ == '__main__':
 
         mycb = EarlyStopping(patience=5, restore_best_weights=True)
 
-        model.fit(x_tr, y_tr, validation_data=(x_val, y_val), epochs=1, batch_size=16, callbacks=[mycb])
+        model.fit(x_tr, y_tr, validation_data=(x_val, y_val), epochs=EPOCHS, batch_size=16, callbacks=[mycb])
         model.save('./models/our_model')
 
     test_df1 = test_df.copy()
