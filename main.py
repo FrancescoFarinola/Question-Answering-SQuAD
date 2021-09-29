@@ -14,7 +14,10 @@ import json
 
 
 EMBEDDING_DIM = 300
-
+#MODEL = 'baseline' #not implemented yet
+#MODEL = 'drqa'
+#MODEL = 'bidaf'
+MODEL = 'our_model'
 
 
 # Press the green button in the gutter to run the script.
@@ -75,12 +78,11 @@ if __name__ == '__main__':
         lambda x: len(preprocess.preprocessing(x.context[:x.answer_start], PREPROCESSING_PIPELINE1).split()), axis=1)
     val_df1['e_idx'] = val_df1.apply(lambda x: x.s_idx + len(x.text.split()) - 1, axis=1)
 
-    model_name = 'our_model'
 
-    if model_name == 'basemodel' or model_name == None:
+    if MODEL == 'basemodel' or MODEL == None:
         pass
 
-    elif model_name == 'drqa':
+    elif MODEL == 'drqa':
 
         pos_listing = ["$", "``", "''", ",", "-LRB-", "-RRB-", ".", ":", "ADD", "AFX", "CC", "CD", "DT",
                        "EX", "FW", "GW", "HYPH", "IN", "JJ", "JJR", "JJS", "LS", "MD", "NFP", "NIL", "NN", "NNP",
@@ -133,7 +135,7 @@ if __name__ == '__main__':
         model.fit(x_tr, y_tr, validation_data=(x_val, y_val), epochs=10, batch_size=16, callbacks=[mycb])
         model.save('./models/drqa')
 
-    elif model_name == "bidaf":
+    elif MODEL == "bidaf":
 
         char_embedding_matrix = utils.get_char_embeddings(df_word_listing, df_word_to_idx)
 
@@ -159,7 +161,7 @@ if __name__ == '__main__':
         model.fit(x_tr, y_tr, validation_data=(x_val, y_val), epochs=1, batch_size=16, callbacks=[mycb])
         model.save('./models/bidaf')
 
-    elif model_name == "our_model":
+    elif MODEL == "our_model":
 
         pos_listing = ["$", "``", "''", ",", "-LRB-", "-RRB-", ".", ":", "ADD", "AFX", "CC", "CD", "DT",
                        "EX", "FW", "GW", "HYPH", "IN", "JJ", "JJR", "JJS", "LS", "MD", "NFP", "NIL", "NN", "NNP",
@@ -228,10 +230,10 @@ if __name__ == '__main__':
     ts_s_one = one_hot(test_df1.s_idx, depth=MAX_CONTEXT_LENGTH)
     ts_e_one = one_hot(test_df1.e_idx, depth=MAX_CONTEXT_LENGTH)
 
-    if model_name == 'drqa' or model_name == "our_model":
+    if MODEL == 'drqa' or MODEL == "our_model":
 
         ts_em_input = utils.compute_exact_match(test_df1, MAX_CONTEXT_LENGTH)
-        ts_tf_input = utils.compute_tf(test_df1, MAX_CONTEXT_LENGTH, train_set=False)
+        ts_tf_input = utils.compute_tf(test_df1, MAX_CONTEXT_LENGTH)
         ts_pos_input = utils.compute_pos(test_df1, tag2idx, MAX_CONTEXT_LENGTH)
         ts_ner_input = utils.compute_ner(test_df1, ner2idx, MAX_CONTEXT_LENGTH)
 
