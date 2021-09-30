@@ -6,7 +6,7 @@ dictionary_path = pkg_resources.resource_filename(
     "symspellpy", "frequency_dictionary_en_82_765.txt")
 sym_spell.load_dictionary(dictionary_path, 0, 1)
 
-import unidecode
+#import unidecode
 import pandas as pd
 
 import nltk
@@ -14,7 +14,7 @@ nltk.download('wordnet')
 
 import spacy.cli
 spacy.cli.download("en_core_web_sm")
-nlp = spacy.load("en_core_web_sm", disable=['parser','senter', 'attribute_ruler'])
+nlp = spacy.load("en_core_web_sm", disable=['parser', 'senter', 'attribute_ruler'])
 
 import re
 from functools import reduce
@@ -27,8 +27,8 @@ CHARS_TO_SPACE = re.compile("[–—\-\\/\[\]\(\)\+:]")
 CHARS_TO_REMOVE = re.compile("[^\w\s£\$%]")
 
 
-def unicode_decode(text):
-    return unidecode.unidecode(text)
+#def unicode_decode(text):
+#    return unidecode.unidecode(text)
 
 
 def expand_contractions(text):
@@ -120,7 +120,7 @@ def preprocessing(text, preprocessing_pipeline):
     return reduce(lambda text, f: f(text), preprocessing_pipeline, text)
 
 
-def apply_preprocessing(df, pipeline):
+def apply_preprocessing(df, pipeline, text=True):
     # get distinct contexts
     tmp = pd.DataFrame(df.context.unique(), columns=['context'])
     # apply preprocessing on distinct contexts
@@ -130,7 +130,8 @@ def apply_preprocessing(df, pipeline):
     # substitute not_preprocessed_context with preprocessed_context
     df.context = df.context.apply(lambda x: dict_context.get(x))
 
-    df['text'] = df['text'].apply(lambda x: preprocessing(x, pipeline))
+    if text:
+        df['text'] = df['text'].apply(lambda x: preprocessing(x, pipeline))
     df['question'] = df['question'].apply(lambda x: preprocessing(x, pipeline))
     return df, tmp
 
