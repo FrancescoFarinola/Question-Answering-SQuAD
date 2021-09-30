@@ -10,7 +10,16 @@ from preprocess import nlp
 from collections import OrderedDict
 import chars2vec
 import re
+from settings import CHAR_EMBEDDING_DIM
 
+
+POS_LISTING = ["$", "``", "''", ",", "-LRB-", "-RRB-", ".", ":", "ADD", "AFX", "CC", "CD", "DT",
+               "EX", "FW", "GW", "HYPH", "IN", "JJ", "JJR", "JJS", "LS", "MD", "NFP", "NIL", "NN", "NNP",
+               "NNPS", "NNS", "PDT", "POS", "PRP", "PRP$", "RB", "RBR", "RBS", "RP", "SP", "SYM", "TO", "UH",
+               "VB", "VBD", "VBG", "VBN", "VBP", "VBZ", "WDT", "WP", "WP$", "WRB", "XX", "_SP"]
+
+NER_LISTING = ["PERSON", "NORP", "FAC", "ORG", "GPE", "LOC", "PRODUCT", "EVENT", "WORK_OF_ART", "LAW",
+               "LANGUAGE", "DATE", "TIME", "PERCENT", "MONEY", "QUANTITY", "ORDINAL", "CARDINAL"]
 
 
 def get_word_listing(sentences):
@@ -32,7 +41,7 @@ def tokenize(word_listing):
     return tokenizer, word_to_idx, idx_to_word
 
 
-def get_co_occurrence_matrix(all_text, word_listing, word_to_idx, window_size=4): #jo messo 4, stava 1!
+def get_co_occurrence_matrix(all_text, word_listing, word_to_idx, window_size=4):
     '''
     Compute the co-occurrence matrix
     '''
@@ -54,7 +63,8 @@ def get_co_occurrence_matrix(all_text, word_listing, word_to_idx, window_size=4)
     return csr_matrix((data, (rows, cols)))
 
 
-def compute_oov_embeddings(terms, word_to_idx, idx_to_word, co_occurrence_matrix, embedding_dim, embedding_model, random_strategy=False):
+def compute_oov_embeddings(terms, word_to_idx, idx_to_word, co_occurrence_matrix, embedding_dim, embedding_model,
+                           random_strategy=False):
     '''
     Compute embedding for OOV terms.
     By default, neighboor strategy is used.
@@ -83,8 +93,6 @@ def compute_oov_embeddings(terms, word_to_idx, idx_to_word, co_occurrence_matrix
             else:
                 embeddings[term] = s / count
     return embeddings
-
-
 
 
 def get_embedding_matrix(dataframe, embedding_dim):
@@ -183,12 +191,14 @@ def exact_match(df, MAX_CONTEXT_LENGTH):
         match.append(padded_match)
     return np.array(match)
 
+
 def apply_exact_match(df, pipeline, MAX_CONTEXT_LENGTH):
     df2 = df.copy()
-    df2, _ = preprocess.apply_preprocessing(df2, pipeline)
+    df2, _ = preprocess.apply_preprocessing(df2, pipeline, text=False)############ho messo false
     # remove stopwords from question before computing exact match
     df2['question'] = df2['question'].apply(lambda x: preprocess.remove_stopwords(x))
     return exact_match(df2, MAX_CONTEXT_LENGTH).squeeze()
+
 
 def compute_exact_match(df, MAX_CONTEXT_LENGTH):
     '''Original match'''
@@ -227,7 +237,7 @@ def compute_exact_match(df, MAX_CONTEXT_LENGTH):
     return exact_match_input
 
 #POS tags
-def create_pos_dicts(pos_listing):
+def create_pos_dicts(pos_listing=POS_LISTING):
     print("Creating dictionaries for POS tags...")
     tag2idx = OrderedDict({tag: idx for idx, tag in enumerate(pos_listing)})
     idx2tag = OrderedDict({idx: tag for tag, idx in tag2idx.items()})
@@ -262,7 +272,7 @@ def compute_pos(df, tag2idx, MAX_CONTEXT_LENGTH):
 
 
 #NER tags
-def create_ner_dicts(ner_listing):
+def create_ner_dicts(ner_listing=NER_LISTING):
     print("Creating dictionaries for NER tags...")
     ner2idx = OrderedDict({tag: idx for idx, tag in enumerate(ner_listing)})
     idx2ner = OrderedDict({idx: tag for tag, idx in ner2idx.items()})
@@ -314,10 +324,10 @@ def compute_ner(df, ner2idx, MAX_CONTEXT_LENGTH):
 
 def get_char_embeddings(word_listing, word_to_idx):
     print("Computing character-level embeddings...")
-    c2v_model = chars2vec.load_model('eng_50')
+    c2v_model = chars2vec.load_model(f'eng_{CHAR_EMBEDDING_DIM}')
     char_embs = c2v_model.vectorize_words(word_listing)
     char_emb_dict = dict(zip(word_listing, char_embs))
-    char_embedding_matrix = np.zeros((len(char_emb_dict) + 2, 50))  # +1 per il padding +2 per l'UNK
+    char_embedding_matrix = np.zeros((len(char_emb_dict) + 2, CHAR_EMBEDDING_DIM))  # +1 per il padding +2 per l'UNK
     for k, v in char_emb_dict.items():
         idx = word_to_idx.get(k)
         char_embedding_matrix[idx] = v
@@ -338,6 +348,7 @@ def compute_answers(predictions, df, df2):
         spans.append(xre.group())
     return spans
 
+'''
 def computing_predictions(model, train_df, val_df, test_df, x_tr, x_val, x_ts):
     print("Preprocessing on datasets...")
     print("Applying expand_contractions2, tokenization_spacy, remove_chars, split_alpha_num_sym and strip_text.")
@@ -367,15 +378,35 @@ def computing_predictions(model, train_df, val_df, test_df, x_tr, x_val, x_ts):
     ts_data = dict(zip(test_df.id, ts_spans))
     data = {**tr_data, **val_data, **ts_data}
     return data
+'''
 
-def evaluate_model(model, MAX_CONTEXT_LENGTH, val_df1, x_val):
+
+def computing_predictions(model, df, x, batch_size):
+    print("Preprocessing on datasets...")
+    print("Applying expand_contractions2, tokenization_spacy, remove_chars, split_alpha_num_sym and strip_text.")
+    PREPROCESSING_PIPELINE_ = [preprocess.expand_contractions2,
+                               preprocess.tokenization_spacy,
+                               preprocess.remove_chars,
+                               preprocess.split_alpha_num_sym,
+                               preprocess.strip_text]
+    df2 = df.copy()
+    df2, tmp2 = preprocess.apply_preprocessing(df2, PREPROCESSING_PIPELINE_, text=False)
+    print("Calculating predictions...")
+    predictions = model.predict(x, batch_size=batch_size)
+    print("Computing answers...")
+    spans = compute_answers(predictions, df, df2)
+    data = dict(zip(df.id, spans))
+    return data
+
+
+def evaluate_model(model, MAX_CONTEXT_LENGTH, truth_df1, x_pred):
     print("Computing F1 score, precision and recall...")
     # create truth mask
-    b = np.array(list(zip(val_df1.s_idx.values, val_df1.e_idx.values)))
+    b = np.array(list(zip(truth_df1.s_idx.values, truth_df1.e_idx.values)))
     r = np.arange(MAX_CONTEXT_LENGTH)
     mask = (b[:, 0, None] <= r) & (b[:, 1, None] >= r)
     mask = mask.astype('int')
-    s, e = model.predict(x_val, batch_size=16)
+    s, e = model.predict(x_pred, batch_size=16)
 
     # create predicted mask
     b2 = np.transpose([tf.argmax(s, -1), tf.argmax(e, -1)])
@@ -391,6 +422,7 @@ def evaluate_model(model, MAX_CONTEXT_LENGTH, val_df1, x_val):
     precision = shared / predicted
     recall = shared / truth
 
-    f1_sum = np.sum([2 * precision[i] * recall[i] / (precision[i] + recall[i]) if (precision[i] + recall[i]) > 0 else 0 for i in range(val_df1.shape[0])])
+    f1_sum = np.sum([2 * precision[i] * recall[i] / (precision[i] + recall[i])
+                     if (precision[i] + recall[i]) > 0 else 0 for i in range(truth_df1.shape[0])])
 
-    return f1_sum/val_df1.shape[0], np.average(precision), np.average(recall)
+    return f1_sum/truth_df1.shape[0], np.average(precision), np.average(recall)
