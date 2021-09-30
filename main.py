@@ -1,3 +1,4 @@
+import pandas as pd
 from keras.utils.vis_utils import plot_model
 from tensorflow.python.keras.callbacks import EarlyStopping
 from tensorflow.python.keras.utils.np_utils import to_categorical
@@ -11,14 +12,7 @@ import our_model
 import sys
 import io
 import json
-
-
-EMBEDDING_DIM = 300
-#MODEL = 'baseline' #not implemented yet
-#MODEL = 'drqa'
-#MODEL = 'bidaf'
-MODEL = 'our_model'
-EPOCHS = 1
+from settings import EMBEDDING_DIM, MODEL, EPOCHS, BATCH_SIZE
 
 
 # Press the green button in the gutter to run the script.
@@ -70,7 +64,7 @@ if __name__ == '__main__':
     val_answer_padded = utils.pad(val_df1.text, df_tokenizer, MAX_TEXT_LENGTH)
     val_question_padded = utils.pad(val_df1.question, df_tokenizer, MAX_QUESTION_LENGTH)
 
-    print("Computing start and end indexes...")
+    print("Computing start and end indices...")
     train_df1['s_idx'] = train_df.apply(
         lambda x: len(preprocess.preprocessing(x.context[:x.answer_start], PREPROCESSING_PIPELINE1).split()), axis=1)
     train_df1['e_idx'] = train_df1.apply(lambda x: x.s_idx + len(x.text.split()) - 1, axis=1)
@@ -85,16 +79,16 @@ if __name__ == '__main__':
 
     elif MODEL == 'drqa':
 
-        pos_listing = ["$", "``", "''", ",", "-LRB-", "-RRB-", ".", ":", "ADD", "AFX", "CC", "CD", "DT",
-                       "EX", "FW", "GW", "HYPH", "IN", "JJ", "JJR", "JJS", "LS", "MD", "NFP", "NIL", "NN", "NNP",
-                       "NNPS", "NNS", "PDT", "POS", "PRP", "PRP$", "RB", "RBR", "RBS", "RP", "SP", "SYM", "TO", "UH",
-                       "VB", "VBD", "VBG", "VBN", "VBP", "VBZ", "WDT", "WP", "WP$", "WRB", "XX", "_SP"]
+        #pos_listing = ["$", "``", "''", ",", "-LRB-", "-RRB-", ".", ":", "ADD", "AFX", "CC", "CD", "DT",
+        #               "EX", "FW", "GW", "HYPH", "IN", "JJ", "JJR", "JJS", "LS", "MD", "NFP", "NIL", "NN", "NNP",
+        #               "NNPS", "NNS", "PDT", "POS", "PRP", "PRP$", "RB", "RBR", "RBS", "RP", "SP", "SYM", "TO", "UH",
+        #               "VB", "VBD", "VBG", "VBN", "VBP", "VBZ", "WDT", "WP", "WP$", "WRB", "XX", "_SP"]
 
-        ner_listing = ["PERSON", "NORP", "FAC", "ORG", "GPE", "LOC", "PRODUCT", "EVENT", "WORK_OF_ART", "LAW",
-                       "LANGUAGE", "DATE", "TIME", "PERCENT", "MONEY", "QUANTITY", "ORDINAL", "CARDINAL"]
+        #ner_listing = ["PERSON", "NORP", "FAC", "ORG", "GPE", "LOC", "PRODUCT", "EVENT", "WORK_OF_ART", "LAW",
+        #               "LANGUAGE", "DATE", "TIME", "PERCENT", "MONEY", "QUANTITY", "ORDINAL", "CARDINAL"]
 
-        tag2idx, idx2tag = utils.create_pos_dicts(pos_listing)
-        ner2idx, idx2ner = utils.create_ner_dicts(ner_listing)
+        tag2idx, idx2tag = utils.create_pos_dicts(utils.POS_LISTING)
+        ner2idx, idx2ner = utils.create_ner_dicts(utils.NER_LISTING)
 
         pos_embedding_matrix = to_categorical(list(idx2tag.keys()))
         ner_embedding_matrix = to_categorical(list(idx2ner.keys()))
@@ -140,7 +134,8 @@ if __name__ == '__main__':
 
         char_embedding_matrix = utils.get_char_embeddings(df_word_listing, df_word_to_idx)
 
-        model = bidaf_model.build_model(MAX_QUESTION_LENGTH, MAX_CONTEXT_LENGTH, EMBEDDING_DIM, embedding_matrix, char_embedding_matrix)
+        model = bidaf_model.build_model(MAX_QUESTION_LENGTH, MAX_CONTEXT_LENGTH, EMBEDDING_DIM, embedding_matrix,
+                                        char_embedding_matrix)
 
         model.compile(loss='categorical_crossentropy', optimizer='nadam', metrics='accuracy')
         model.summary()
@@ -160,20 +155,21 @@ if __name__ == '__main__':
         mycb = EarlyStopping(patience=5, restore_best_weights=True)
 
         model.fit(x_tr, y_tr, validation_data=(x_val, y_val), epochs=EPOCHS, batch_size=16, callbacks=[mycb])
-        model.save('./models/bidaf')
+        #model.save('./models/bidaf')
+        model.save_weights('./models/bidaf_weights.h5')
 
     elif MODEL == "our_model":
 
-        pos_listing = ["$", "``", "''", ",", "-LRB-", "-RRB-", ".", ":", "ADD", "AFX", "CC", "CD", "DT",
-                       "EX", "FW", "GW", "HYPH", "IN", "JJ", "JJR", "JJS", "LS", "MD", "NFP", "NIL", "NN", "NNP",
-                       "NNPS", "NNS", "PDT", "POS", "PRP", "PRP$", "RB", "RBR", "RBS", "RP", "SP", "SYM", "TO", "UH",
-                       "VB", "VBD", "VBG", "VBN", "VBP", "VBZ", "WDT", "WP", "WP$", "WRB", "XX", "_SP"]
+        #pos_listing = ["$", "``", "''", ",", "-LRB-", "-RRB-", ".", ":", "ADD", "AFX", "CC", "CD", "DT",
+        #               "EX", "FW", "GW", "HYPH", "IN", "JJ", "JJR", "JJS", "LS", "MD", "NFP", "NIL", "NN", "NNP",
+        #               "NNPS", "NNS", "PDT", "POS", "PRP", "PRP$", "RB", "RBR", "RBS", "RP", "SP", "SYM", "TO", "UH",
+        #               "VB", "VBD", "VBG", "VBN", "VBP", "VBZ", "WDT", "WP", "WP$", "WRB", "XX", "_SP"]
 
-        ner_listing = ["PERSON", "NORP", "FAC", "ORG", "GPE", "LOC", "PRODUCT", "EVENT", "WORK_OF_ART", "LAW",
-                       "LANGUAGE", "DATE", "TIME", "PERCENT", "MONEY", "QUANTITY", "ORDINAL", "CARDINAL"]
+        #ner_listing = ["PERSON", "NORP", "FAC", "ORG", "GPE", "LOC", "PRODUCT", "EVENT", "WORK_OF_ART", "LAW",
+        #               "LANGUAGE", "DATE", "TIME", "PERCENT", "MONEY", "QUANTITY", "ORDINAL", "CARDINAL"]
 
-        tag2idx, idx2tag = utils.create_pos_dicts(pos_listing)
-        ner2idx, idx2ner = utils.create_ner_dicts(ner_listing)
+        tag2idx, idx2tag = utils.create_pos_dicts()
+        ner2idx, idx2ner = utils.create_ner_dicts()
 
         pos_embedding_matrix = to_categorical(list(idx2tag.keys()))
         ner_embedding_matrix = to_categorical(list(idx2ner.keys()))
@@ -250,7 +246,14 @@ if __name__ == '__main__':
     evaluation = model.evaluate(x_ts, y_ts, batch_size=16)
     print(evaluation)
 
-    predictions = utils.computing_predictions(model, train_df, val_df, test_df, x_tr, x_val, x_ts)
+
+    df = pd.concat([train_df, val_df, test_df], 0, ignore_index=True)
+    x = pd.concat([x_tr, x_val, x_ts], 0)
+    predictions = utils.computing_predictions(model, df, x, BATCH_SIZE)
+    #predictions = utils.computing_predictions(model, train_df, val_df, test_df, x_tr, x_val, x_ts)
+    #predictions = utils.computing_predictions(model, train_df, val_df, test_df, x_tr, x_val, x_ts)
+    #predictions = utils.computing_predictions(model, train_df, val_df, test_df, x_tr, x_val, x_ts)
+
 
     print("Saving predictions as json...")
     with open('predictions.json', 'w') as outfile:
