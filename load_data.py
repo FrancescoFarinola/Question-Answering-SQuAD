@@ -40,6 +40,31 @@ def load_dataset():
     return pd.DataFrame(dataframe_rows)
 
 
+def load_dataset_without_answer(path):
+    with open(path) as f:
+        data = json.load(f)
+
+    dataframe_rows = []
+    for d in data["data"]:
+        title = d["title"]
+        paragraphs = d["paragraphs"]
+        for p in paragraphs:
+            context = p["context"]
+            qas = p["qas"]
+            for q in qas:
+                question = q["question"]
+                qid = q["id"]
+                dataframe_row = {
+                    "title": title,
+                    "context": context,
+                    "question": question,
+                    "id": qid
+                }
+                dataframe_rows.append(dataframe_row)
+
+    return pd.DataFrame(dataframe_rows)
+
+
 def remove_error_rows(dataframe, path, filename):
     with open(f"{path}/{filename}", encoding='utf-8') as f_errors:
         errors = f_errors.read().splitlines()
