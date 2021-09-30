@@ -1,0 +1,16 @@
+EMBEDDING_DIM = 100
+CHAR_EMBEDDING_DIM = 50
+#MODEL = 'baseline' #not implemented yet
+#MODEL = 'drqa'
+#MODEL = 'bidaf'
+MODEL = 'our_model'
+
+EPOCHS = 1
+
+BATCH_SIZE = 8
+
+MODELS_DIR = "./models"
+
+MAX_CONTEXT_LENGTH = 728
+MAX_TEXT_LENGTH = 47
+MAX_QUESTION_LENGTH = 44
