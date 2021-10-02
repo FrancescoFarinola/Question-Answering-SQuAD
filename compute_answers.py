@@ -15,16 +15,12 @@ import our_model
 from settings import MAX_CONTEXT_LENGTH, MAX_QUESTION_LENGTH, MODEL, MODELS_DIR, BATCH_SIZE, EMBEDDING_DIM
 
 if __name__ == '__main__':
-    #MAX_CONTEXT_LENGTH = settings.MAX_CONTEXT_LENGTH
-    #MAX_TEXT_LENGTH = settings.MAX_TEXT_LENGTH
-    #MAX_QUESTION_LENGTH = settings
-    #MODEL = "our_model"
-    #read data
+    # read data
     path_to_file = str(sys.argv[1])
     assert isfile(path_to_file)
     print("reading:", path_to_file)
     df = load_data.load_dataset_without_answer(path_to_file)
-    #apply preprocessing
+    # apply preprocessing
     PREPROCESSING_PIPELINE1 = [preprocess.expand_contractions,
                                preprocess.tokenization_spacy,
                                preprocess.remove_chars,
@@ -61,7 +57,7 @@ if __name__ == '__main__':
         embedding_matrix = np.genfromtxt(f'{MODELS_DIR}/embedding_matrix.csv', delimiter=',')
         df_idx_to_word = dict(zip([int(k) for k in df_idx_to_word.keys()], df_idx_to_word.values()))
         print("Done")
-    except:
+    except AssertionError:
         print("File are missing")
 
     context_padded = utils.pad(df1.context, df_tokenizer, MAX_CONTEXT_LENGTH)
@@ -79,9 +75,7 @@ if __name__ == '__main__':
         ner_input = utils.compute_ner(df1, ner2idx, MAX_CONTEXT_LENGTH)
 
         x = {'context': context_padded, 'question': question_padded, 'pos': pos_input,
-                'ner': ner_input, 'em': em_input, 'tf': tf_input}
-        #y = {'start': s_one, 'end': e_one}
-
+             'ner': ner_input, 'em': em_input, 'tf': tf_input}
 
         if MODEL == 'drqa':
             model = drqa_model.build_model(MAX_QUESTION_LENGTH, MAX_CONTEXT_LENGTH, EMBEDDING_DIM,
@@ -94,7 +88,6 @@ if __name__ == '__main__':
                                           ner_embedding_matrix)
     else:
         x = {'context': context_padded, 'question': question_padded}
-        #y = {'start': s_one, 'end': e_one}
 
         if MODEL == 'bidaf':
             assert isfile(f"{MODELS_DIR}/char_embedding_matrix.csv")
@@ -104,18 +97,7 @@ if __name__ == '__main__':
 
     model.load_weights(f"{MODELS_DIR}/{MODEL}_weights.h5")
 
-    #print("Evalutating model...")
-    #evaluation = model.evaluate(x, y, batch_size=utils.BATCH_SIZE)
-    #print(evaluation)
-
     predictions = utils.computing_predictions(model, df, x, BATCH_SIZE)
     print("Saving predictions as json...")
-    with open('predictions.json', 'w') as outfile: # va a sovrascrivere altre predicition??
+    with open('predictions.json', 'w') as outfile:  # va a sovrascrivere altre predicition??
         json.dump(predictions, outfile)
-
-    #f1, precision, recall = utils.evaluate_model(model, MAX_CONTEXT_LENGTH, df1, x)
-    #print(f"F1: {f1}\t Precision: {precision}\t Recall: {recall}\t")
-
-
-
-
