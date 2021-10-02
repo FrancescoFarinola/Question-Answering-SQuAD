@@ -10,7 +10,8 @@ from preprocess import nlp
 from collections import OrderedDict
 import chars2vec
 import re
-from settings import CHAR_EMBEDDING_DIM
+from sklearn.feature_extraction.text import CountVectorizer
+from settings import CHAR_EMBEDDING_DIM, BATCH_SIZE
 
 
 POS_LISTING = ["$", "``", "''", ",", "-LRB-", "-RRB-", ".", ":", "ADD", "AFX", "CC", "CD", "DT",
@@ -23,16 +24,22 @@ NER_LISTING = ["PERSON", "NORP", "FAC", "ORG", "GPE", "LOC", "PRODUCT", "EVENT",
 
 
 def get_word_listing(sentences):
+    """
+    Compute word listing from list of sentences
+    @param sentences: list containing sentences
+    @return: word listing
+    """
     terms = [term for sentence in sentences for term in sentence.split()]
     return list(set(terms))
 
 
 def tokenize(word_listing):
     """
-    Fit tokenizer, create word2idx e idx2word
+    Compute tokenizer, word_to_idx and idx_to_word
+    @param word_listing: word listing
+    @return: tokenizer, word_to_idx, idx_to_word
     """
-    tokenizer = Tokenizer(filters=list(), oov_token=True)  # aggiunto per oov !! 2 ottobre
-    tokenizer.fit_on_texts(word_listing)
+    tokenizer = Tokenizer(filters=list(), oov_token=True)
     indices = tokenizer.texts_to_sequences(word_listing)
     indices = [item for sublist in indices for item in sublist]
     word_to_idx = dict(zip(word_listing, indices))
@@ -41,11 +48,14 @@ def tokenize(word_listing):
     return tokenizer, word_to_idx, idx_to_word
 
 
-def get_co_occurrence_matrix(all_text, word_to_idx, window_size=4):
+def get_co_occurrence_matrix(sentences, word_to_idx, window_size=4):
     """
-    Compute the co-occurrence matrix
+    Compute co-occurrence matrix
+    @param sentences: list of sentences
+    @param word_to_idx: word_to_idx
+    @param window_size: size of the window for the co-occurrence matrix
+    @return: co-occurrence matrix
     """
-    sentences = all_text
     rows, cols, data = [], [], []
     for sentence in sentences:
         words = sentence.split()
@@ -68,6 +78,14 @@ def compute_oov_embeddings(terms, word_to_idx, idx_to_word, co_occurrence_matrix
     """
     Compute embedding for OOV terms.
     By default, neighbour strategy is used.
+    @param terms: word listing
+    @param word_to_idx: word to idx
+    @param idx_to_word: idx to word
+    @param co_occurrence_matrix: co-occurrence matrix
+    @param embedding_dim: word embedding dimension
+    @param embedding_model: embedding model
+    @param random_strategy: apply (or not) random strategy
+    @return: embeddings for oov terms
     """
     embeddings = dict()
     vocabulary = embedding_model.key_to_index.keys()
@@ -97,14 +115,12 @@ def compute_oov_embeddings(terms, word_to_idx, idx_to_word, co_occurrence_matrix
 
 def get_embedding_matrix(dataframe, embedding_dim):
     """
-    Create the embedding matrix
-
-    :param embedding_dim: the dimension of the embedding space
-    :tokenizer_x: the tokenizer used to tokenize the data (x)
-
-    :return
-     emb_matrix: the embedding_matrix
+    Compute word embedding matrix
+    @param dataframe: dataframe
+    @param embedding_dim: word embedding dimension
+    @return: word embedding matrix
     """
+
     all_text = pd.concat([dataframe['context'], dataframe['question']], axis=0).unique()
     df_word_listing = get_word_listing(all_text)
     df_tokenizer, df_word_to_idx, df_idx_to_word = tokenize(df_word_listing)
@@ -132,37 +148,55 @@ def get_embedding_matrix(dataframe, embedding_dim):
     return emb_matrix, df_word_listing, df_tokenizer, df_word_to_idx, df_idx_to_word
 
 
-def get_max_length(dataframe):
+def get_max_length(dataframe, rate=1.1):
+    """
+    Compute maximum length for contexts, texts and questions
+    @param dataframe: dataframe
+    @param rate: how much enlarge the maximum dimension
+    @return: maximum context, text and question length
+    """
     len_context_tokens = [len(sentence.split()) for sentence in dataframe.context.unique()]
     max_context_length = np.max(len_context_tokens)
     print(f'Max length for context is {max_context_length}')
-    print(f'Max length adopted for context is {int(max_context_length * 1.1)}')
+    print(f'Max length adopted for context is {int(max_context_length * rate)}')
 
     len_text_tokens = [len(sentence.split()) for sentence in dataframe.text.values]
     max_text_length = np.max(len_text_tokens)
     print(f'Max length for answer is {max_text_length}')
-    print(f'Max length adopted for answer is {int(max_text_length * 1.1)}')
+    print(f'Max length adopted for answer is {int(max_text_length * rate)}')
 
     len_question_tokens = [len(sentence.split()) for sentence in dataframe.question.values]
     max_question_length = np.max(len_question_tokens)
     print(f'Max length for question is {max_question_length}')
-    print(f'Max length adopted for question is {int(max_question_length * 1.1)}')
+    print(f'Max length adopted for question is {int(max_question_length * rate)}')
 
     return int(max_context_length * 1.1), int(max_text_length * 1.1), int(max_question_length * 1.1)
 
 
 def pad(df_values, tokenizer, max_length):
+    """
+    Pad records
+    @param df_values: list of records to pad
+    @param tokenizer: tokenizer
+    @param max_length: maximum length for padding
+    @return: padded records
+    """
     x = [t.split() for t in df_values]
     x_encoded = tokenizer.texts_to_sequences(x)
+    # tokenizer returns None for oov, here None is replaced with index 1
     x_encoded = [[1 if i is None else i for i in row] for row in x_encoded]
     x_padded = pad_sequences(x_encoded, maxlen=max_length, padding='post')
     return x_padded
 
 
-# TF
 def compute_tf(df, max_context_length):
-    print("Computing normalized TF...")
-    from sklearn.feature_extraction.text import CountVectorizer
+    """
+    Compute term frequency
+    @param df: dataframe
+    @param max_context_length: maximum context length
+    @return: context term frequencies
+    """
+    print("Computing TF...")
     corpus = df.context.values
     vectorizer = CountVectorizer(token_pattern=r"\S+")
     tf_context = vectorizer.fit_transform(corpus)
@@ -180,6 +214,12 @@ def compute_tf(df, max_context_length):
 
 # Exact match
 def exact_match(df, max_context_length):
+    """
+    Compute exact match between context and question
+    @param df: dataframe
+    @param max_context_length: maximum context length
+    @return: dataframe with exact match
+    """
     match = []
     for i in range(0, df.shape[0]):
         match1 = np.in1d(df.context[i].split(), df.question[i].split()).astype(int).reshape(1, -1)
@@ -189,15 +229,27 @@ def exact_match(df, max_context_length):
 
 
 def apply_exact_match(df, pipeline, max_context_length):
+    """
+    Apply exact match
+    @param df: dataframe
+    @param pipeline: list of preprocessing operations
+    @param max_context_length: maximum context length
+    @return: dataframe with exact match
+    """
     df2 = df.copy()
-    df2, _ = preprocess.apply_preprocessing(df2, pipeline, text=False)  # ho messo false
+    df2, _ = preprocess.apply_preprocessing(df2, pipeline, text=False)
     # remove stopwords from question before computing exact match
     df2['question'] = df2['question'].apply(lambda x: preprocess.remove_stopwords(x))
     return exact_match(df2, max_context_length).squeeze()
 
 
 def compute_exact_match(df, max_context_length):
-    """Original match"""
+    """
+    Compute original, lowercase and lemmatized exact matches
+    @param df: dataframe
+    @param max_context_length: maximum context length
+    @return: dataframe with exact matches
+    """
     print("Computing original exact match...")
     preprocessing_pipeline1 = [preprocess.expand_contractions,
                                preprocess.tokenization_spacy,
@@ -207,7 +259,6 @@ def compute_exact_match(df, max_context_length):
 
     original_match = apply_exact_match(df, preprocessing_pipeline1, max_context_length).squeeze()
 
-    '''Lowercase exact match'''
     print("Computing lowercase exact match...")
     preprocessing_pipeline2 = [preprocess.expand_contractions,
                                preprocess.tokenization_spacy,
@@ -218,7 +269,6 @@ def compute_exact_match(df, max_context_length):
 
     lowercase_match = apply_exact_match(df, preprocessing_pipeline2, max_context_length).squeeze()
 
-    '''Lemmatized exact match'''
     print("Computing lemmatized exact match...")
     preprocessing_pipeline3 = [preprocess.expand_contractions,
                                preprocess.tokenization_spacy,
@@ -235,6 +285,11 @@ def compute_exact_match(df, max_context_length):
 
 # POS tags
 def create_pos_dicts(pos_listing=POS_LISTING):
+    """
+    Compute pos to idx and idx to pos
+    @param pos_listing: list of POS tags
+    @return: pos to idx, idx to pos
+    """
     print("Creating dictionaries for POS tags...")
     tag2idx = OrderedDict({tag: idx for idx, tag in enumerate(pos_listing)})
     idx2tag = OrderedDict({idx: tag for tag, idx in tag2idx.items()})
@@ -254,6 +309,13 @@ def create_pos_dicts(pos_listing=POS_LISTING):
 
 
 def compute_pos(df, tag2idx, max_context_length):
+    """
+    Compute POS
+    @param df: dataframe
+    @param tag2idx: pos to idx
+    @param max_context_length: maximum context length
+    @return: pos dataframe
+    """
     print("Computing POS tags...")
     docs = nlp.pipe(df.context, disable=["tok2vec", "ner", "lemmatizer"])
     postags = [[token.tag_ for token in doc] for doc in docs]
@@ -270,6 +332,11 @@ def compute_pos(df, tag2idx, max_context_length):
 
 # NER tags
 def create_ner_dicts(ner_listing=NER_LISTING):
+    """
+    Compute ner to idx and idx to ner
+    @param ner_listing: list of NER tags
+    @return: ner to idx, idx to ner
+    """
     print("Creating dictionaries for NER tags...")
     ner2idx = OrderedDict({tag: idx for idx, tag in enumerate(ner_listing)})
     idx2ner = OrderedDict({idx: tag for tag, idx in ner2idx.items()})
@@ -293,6 +360,13 @@ def create_ner_dicts(ner_listing=NER_LISTING):
 
 
 def compute_ner(df, ner2idx, max_context_length):
+    """
+    Compute NER
+    @param df: dataframe
+    @param ner2idx: ner to idx
+    @param max_context_length: maximum context length
+    @return: ner dataframe
+    """
     print("Computing NER tags...")
     docs = nlp.pipe(df.context, disable=["tok2vec", "tagger", "lemmatizer"])
     nertags = [[(ent.text, ent.label_) for ent in doc.ents] for doc in docs]
@@ -321,6 +395,12 @@ def compute_ner(df, ner2idx, max_context_length):
 
 
 def get_char_embeddings(word_listing, word_to_idx):
+    """
+    Compute character embedding matrix
+    @param word_listing: word listing
+    @param word_to_idx: word to idx
+    @return: character embedding matrix
+    """
     print("Computing character-level embeddings...")
     c2v_model = chars2vec.load_model(f'eng_{CHAR_EMBEDDING_DIM}')
     char_embs = c2v_model.vectorize_words(word_listing)
@@ -333,6 +413,13 @@ def get_char_embeddings(word_listing, word_to_idx):
 
 
 def compute_answers(predictions, df, df2):
+    """
+    Compute the answers given the indices span predictions
+    @param predictions: predictions (probabilities)
+    @param df: original dataframe
+    @param df2: dataframe processed with pipeline 2
+    @return: answers extracted from the original dataset
+    """
     preds = np.argmax(predictions, -1)
     s_idx = preds[0]
     e_idx = preds[1]
@@ -347,40 +434,15 @@ def compute_answers(predictions, df, df2):
     return spans
 
 
-'''
-def computing_predictions(model, train_df, val_df, test_df, x_tr, x_val, x_ts):
-    print("Preprocessing on datasets...")
-    print("Applying expand_contractions2, tokenization_spacy, remove_chars, split_alpha_num_sym and strip_text.")
-    PREPROCESSING_PIPELINE_ = [preprocess.expand_contractions2,
-                               preprocess.tokenization_spacy,
-                               preprocess.remove_chars,
-                               preprocess.split_alpha_num_sym,
-                               preprocess.strip_text]
-    tr_df2 = train_df.copy()
-    tr_df2, tr_tmp1 = preprocess.apply_preprocessing(tr_df2, PREPROCESSING_PIPELINE_)
-    val_df2 = val_df.copy()
-    val_df2, val_tmp2 = preprocess.apply_preprocessing(val_df2, PREPROCESSING_PIPELINE_)
-    ts_df2 = test_df.copy()
-    ts_df2, ts_tmp2 = preprocess.apply_preprocessing(ts_df2, PREPROCESSING_PIPELINE_)
-
-    print("Calculating predictions...")
-    tr_predictions = model.predict(x_tr, batch_size=16)
-    val_predictions = model.predict(x_val, batch_size=16)
-    ts_predictions = model.predict(x_ts, batch_size=16)
-
-    print("Computing answers...")
-    tr_spans = compute_answers(tr_predictions, train_df, tr_df2)
-    val_spans = compute_answers(val_predictions, val_df, val_df2)
-    ts_spans = compute_answers(ts_predictions, test_df, ts_df2)
-    tr_data = dict(zip(train_df.id, tr_spans))
-    val_data = dict(zip(val_df.id, val_spans))
-    ts_data = dict(zip(test_df.id, ts_spans))
-    data = {**tr_data, **val_data, **ts_data}
-    return data
-'''
-
-
 def computing_predictions(model, df, x, batch_size):
+    """
+    Compute predictions and answers
+    @param model: model
+    @param df: dataframe
+    @param x: input to the model
+    @param batch_size: batch size
+    @return: answers extracted from original dataframe
+    """
     print("Preprocessing on datasets...")
     print("Applying expand_contractions2, tokenization_spacy, remove_chars, split_alpha_num_sym and strip_text.")
     preprocessing_pipeline_ = [preprocess.expand_contractions2,
@@ -398,29 +460,40 @@ def computing_predictions(model, df, x, batch_size):
     return data
 
 
-def evaluate_model(model, max_context_length, truth_df1, x_pred):
+def evaluate_model(model, max_context_length, truth_df, x, batch_size=BATCH_SIZE):
+    """
+    Compute our model evaluation
+    @param model: model
+    @param max_context_length: maximum context length
+    @param truth_df: ground truth dataframe (preprocessed 1)
+    @param x: input to the model
+    @param batch_size: batch size
+    @return: F1, precision, recall
+    """
     print("Computing F1 score, precision and recall...")
     # create truth mask
-    b = np.array(list(zip(truth_df1.s_idx.values, truth_df1.e_idx.values)))
+    truth_start_end = np.array(list(zip(truth_df.s_idx.values, truth_df.e_idx.values)))
     r = np.arange(max_context_length)
-    mask = (b[:, 0, None] <= r) & (b[:, 1, None] >= r)
-    mask = mask.astype('int')
-    s, e = model.predict(x_pred, batch_size=16)
+    # 1 if r start <= r <= end, 0 otherwise
+    truth_mask = (truth_start_end[:, 0, None] <= r) & (r <= truth_start_end[:, 1, None])
+    truth_mask = truth_mask.astype('int')
 
-    # create predicted mask
-    b2 = np.transpose([tf.argmax(s, -1), tf.argmax(e, -1)])
-    mask2 = (b2[:, 0, None] <= r) & (b2[:, 1, None] >= r)
-    mask2 = mask2.astype('int')
+    # create predictions mask
+    predictions_start, predictions_end = model.predict(x, batch_size=batch_size)
+    predicted_start_end = np.transpose([tf.argmax(predictions_start, -1), tf.argmax(predictions_end, -1)])
+    # 1 if r start < r < end, 0 otherwise
+    predictions_mask = (predicted_start_end[:, 0, None] <= r) & (r <= predicted_start_end[:, 1, None])
+    predictions_mask = predictions_mask.astype('int')
 
-    product = tf.math.multiply(mask, mask2)
+    product = tf.math.multiply(truth_mask, predictions_mask)
     shared = np.sum(product, axis=-1)
-    predicted = np.sum(mask2, axis=-1)
-    truth = np.sum(mask, axis=-1)
+    predictions = np.sum(predictions_mask, axis=-1)
+    truth = np.sum(truth_mask, axis=-1)
 
-    precision = shared / predicted
+    precision = shared / predictions
     recall = shared / truth
 
     f1_sum = np.sum([2 * precision[i] * recall[i] / (precision[i] + recall[i])
-                     if (precision[i] + recall[i]) > 0 else 0 for i in range(truth_df1.shape[0])])
+                     if (precision[i] + recall[i]) > 0 else 0 for i in range(truth_df.shape[0])])
 
-    return f1_sum/truth_df1.shape[0], np.average(precision), np.average(recall)
+    return f1_sum/truth_df.shape[0], np.average(precision), np.average(recall)
