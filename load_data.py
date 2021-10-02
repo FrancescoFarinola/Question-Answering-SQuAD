@@ -1,15 +1,19 @@
 import json
 import pandas as pd
 import numpy as np
-import sklearn
 from sklearn.model_selection import train_test_split
+from settings import DATA_DIR
 
 
-def load_dataset():
-    path = './data'
-    filename = "training_set.json"
+def load_dataset(data_dir=DATA_DIR, filename="training_set.json"):
+    """
+    Load the dataset
+    @param data_dir: data directory
+    @param filename: dataset JSON file
+    @return: dataframe
+    """
 
-    with open(f"{path}/{filename}") as f:
+    with open(f"{data_dir}/{filename}") as f:
         data = json.load(f)
 
     dataframe_rows = []
@@ -41,6 +45,11 @@ def load_dataset():
 
 
 def load_dataset_without_answer(path):
+    """
+    Load dataset without answers
+    @param path: dataset file path
+    @return: dataset
+    """
     with open(path) as f:
         data = json.load(f)
 
@@ -66,6 +75,13 @@ def load_dataset_without_answer(path):
 
 
 def remove_error_rows(dataframe, path, filename):
+    """
+    Remove rows containing errors from the dataset
+    @param dataframe:
+    @param path:
+    @param filename:
+    @return:
+    """
     with open(f"{path}/{filename}", encoding='utf-8') as f_errors:
         errors = f_errors.read().splitlines()
     dataframe = dataframe[dataframe['id'].isin(errors)]
@@ -91,16 +107,21 @@ def split_test_set(dataframe):
     return dataframe, ts_df
 
 
-
 def split_validation_set(dataframe, rate):
+    """
+    Split dataframe in training and validation set
+    records with the same title are kept together
+    @param dataframe:
+    @param rate: validation / training ratio
+    @return:
+    """
     tr_title, val_title = train_test_split(np.unique(dataframe.title), test_size=rate, random_state=0)
     tr_idx = np.isin(dataframe.title, tr_title)
     val_idx = np.isin(dataframe.title, val_title)
 
+    # reset indices
     tr_df = dataframe.loc[tr_idx]
     tr_df.reset_index(inplace=True, drop=True)
     val_df = dataframe.loc[val_idx]
     val_df.reset_index(inplace=True, drop=True)
     return tr_df, val_df
-
-
