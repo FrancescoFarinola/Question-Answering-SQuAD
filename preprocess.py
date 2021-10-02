@@ -1,34 +1,27 @@
-import symspellpy
+import pandas as pd
+import nltk
+import spacy.cli
 from symspellpy import SymSpell, Verbosity
 import pkg_resources
+import re
+from functools import reduce
+from nltk.stem import WordNetLemmatizer
+
 sym_spell = SymSpell(max_dictionary_edit_distance=2)
 dictionary_path = pkg_resources.resource_filename(
     "symspellpy", "frequency_dictionary_en_82_765.txt")
 sym_spell.load_dictionary(dictionary_path, 0, 1)
 
-#import unidecode
-import pandas as pd
-
-import nltk
 nltk.download('wordnet')
 
-import spacy.cli
 spacy.cli.download("en_core_web_sm")
 nlp = spacy.load("en_core_web_sm", disable=['parser', 'senter', 'attribute_ruler'])
 
-import re
-from functools import reduce
-from nltk.stem import WordNetLemmatizer
 wordnet_lemmatizer = WordNetLemmatizer()
 
-
-WHITESPACES_RE = re.compile("\s+")
-CHARS_TO_SPACE = re.compile("[–—\-\\/\[\]\(\)\+:]")
-CHARS_TO_REMOVE = re.compile("[^\w\s£\$%]")
-
-
-#def unicode_decode(text):
-#    return unidecode.unidecode(text)
+WHITESPACES_RE = re.compile(r"\s+")
+CHARS_TO_SPACE = re.compile(r"[–—\-\\/\[\]()+:]")
+CHARS_TO_REMOVE = re.compile(r"[^\w\s£$%]")
 
 
 def expand_contractions(text):
@@ -81,10 +74,10 @@ def remove_chars(text):
 
 def split_alpha_num_sym(text):
     # split alphabetic from numeric characters and symbols and vice-versa
-    text = re.sub(r'(\d)([a-zA-Z£\$%])', r'\1 \2', text)
-    text = re.sub(r'([a-zA-Z£\$%])(\d)', r'\1 \2', text)
-    text = re.sub(r'([a-zA-Z])([£\$%])', r'\1 \2', text)
-    text = re.sub(r'([£\$%])([a-zA-Z])', r'\1 \2', text)
+    text = re.sub(r'(\d)([a-zA-Z£$%])', r'\1 \2', text)
+    text = re.sub(r'([a-zA-Z£$%])(\d)', r'\1 \2', text)
+    text = re.sub(r'([a-zA-Z])([£$%])', r'\1 \2', text)
+    text = re.sub(r'([£$%])([a-zA-Z])', r'\1 \2', text)
     return text
 
 
@@ -112,12 +105,12 @@ def strip_text(text):
     return WHITESPACES_RE.sub(' ', text)
 
 
-def remove_stopwords(text, stopwords = nlp.Defaults.stop_words):
-    return " ".join([w for w in text.split() if not(w in stopwords)])
+def remove_stopwords(text, stopwords=nlp.Defaults.stop_words):
+    return " ".join([w for w in text.split() if not (w in stopwords)])
 
 
 def preprocessing(text, preprocessing_pipeline):
-    return reduce(lambda text, f: f(text), preprocessing_pipeline, text)
+    return reduce(lambda x, f: f(x), preprocessing_pipeline, text)
 
 
 def apply_preprocessing(df, pipeline, text=True):
@@ -134,6 +127,7 @@ def apply_preprocessing(df, pipeline, text=True):
         df['text'] = df['text'].apply(lambda x: preprocessing(x, pipeline))
     df['question'] = df['question'].apply(lambda x: preprocessing(x, pipeline))
     return df, tmp
+
 
 """
 def clean_text(dataframe):
@@ -162,4 +156,3 @@ def clean_text(dataframe):
     df1['question'] = df1['question'].apply(lambda x: preprocessing(x, PREPROCESSING_PIPELINE))
     return df1
 """
-
