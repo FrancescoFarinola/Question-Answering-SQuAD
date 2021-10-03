@@ -73,14 +73,14 @@ def load_dataset_without_answer(path):
 
     return pd.DataFrame(dataframe_rows)
 
-
+'''
 def remove_error_rows(dataframe, path, filename):
     """
     Remove rows containing errors from the dataset
-    @param dataframe:
-    @param path:
-    @param filename:
-    @return:
+    @param dataframe: dataset
+    @param path: path of the file containing error indices
+    @param filename: name of the file containing error indices
+    @return: dataframe containing only errors
     """
     with open(f"{path}/{filename}", encoding='utf-8') as f_errors:
         errors = f_errors.read().splitlines()
@@ -90,18 +90,55 @@ def remove_error_rows(dataframe, path, filename):
 
 
 def remove_2occ_rows(dataframe):
-    tmpocc = dataframe.apply(lambda x: x.context.count(x.text), axis=1)
-    tmpindices = np.where(tmpocc > 1)
-    dataframe = dataframe.loc[tmpindices]
+    """
+    Remove rows containing more instances of the proposed answer
+    @param dataframe: dataset
+    @return: dataset containing only rows containing multiple instances of the answer
+    """
+    occurrences = dataframe.apply(lambda x: x.context.count(x.text), axis=1)
+    idx_multiple_occurrences = np.where(occurrences > 1)
+    dataframe = dataframe.loc[idx_multiple_occurrences]
     dataframe.reset_index(inplace=True, drop=True)
     return dataframe
+'''
+
+
+def remove_rows(dataframe):
+    """
+    Remove rows containing errors or more instances of the proposed answer
+    @param dataframe: dataset
+    @return: test dataset
+    """
+    # dataset with multiple occurrences of the answer
+    occurrences = dataframe.apply(lambda x: x.context.count(x.text), axis=1)
+    idx_multiple_occurrences = np.where(occurrences > 1)
+    ts_df1 = dataframe.loc[idx_multiple_occurrences]
+    ts_df1.reset_index(inplace=True, drop=True)
+
+    ts_df2 = dataframe.loc[~ dataframe.id.isin(ts_df1.id)]
+    ts_df2.reset_index(inplace=True, drop=True)
+    # dataset with errors
+    idx_errors = ts_df2.apply(lambda row: row.answer_start != row.context.find(row.text), axis=1)
+    ts_df2 = ts_df2.loc[idx_errors]
+    ts_df2.reset_index(inplace=True, drop=True)
+
+    ts_df = pd.concat([ts_df1, ts_df2])
+    ts_df.reset_index(inplace=True, drop=True)
+    return ts_df
 
 
 def split_test_set(dataframe):
-    ts_df1 = remove_error_rows(dataframe, path="./data", filename="error IDs.txt")
-    ts_df2 = remove_2occ_rows(dataframe)
-    ts_df = pd.concat([ts_df1, ts_df2])
-    ts_df.reset_index(inplace=True, drop=True)
+    """
+    Split training and test set
+    @param dataframe: dataset
+    @return: training dataset, test dataset
+    """
+    # ts_df1 = remove_error_rows(dataframe, path="./data", filename="error IDs.txt")
+    ts_df = remove_rows(dataframe)
+    #ts_df = pd.concat([ts_df1, ts_df2])
+    #ts_df.reset_index(inplace=True, drop=True)
+
+    # reset indices
     dataframe = dataframe[~dataframe['id'].isin(ts_df.id)]
     dataframe.reset_index(inplace=True, drop=True)
     return dataframe, ts_df
@@ -110,11 +147,12 @@ def split_test_set(dataframe):
 def split_validation_set(dataframe, rate):
     """
     Split dataframe in training and validation set
-    records with the same title are kept together
+    nb: records with the same title are kept together
     @param dataframe:
     @param rate: validation / training ratio
     @return:
     """
+    # split
     tr_title, val_title = train_test_split(np.unique(dataframe.title), test_size=rate, random_state=0)
     tr_idx = np.isin(dataframe.title, tr_title)
     val_idx = np.isin(dataframe.title, val_title)
