@@ -40,6 +40,7 @@ def tokenize(word_listing):
     @return: tokenizer, word_to_idx, idx_to_word
     """
     tokenizer = Tokenizer(filters=list(), oov_token=True)
+    tokenizer.fit_on_texts(word_listing)
     indices = tokenizer.texts_to_sequences(word_listing)
     indices = [item for sublist in indices for item in sublist]
     word_to_idx = dict(zip(word_listing, indices))
@@ -121,8 +122,9 @@ def get_embedding_matrix(dataframe, embedding_dim):
     @return: word embedding matrix
     """
 
-    all_text = pd.concat([dataframe['context'], dataframe['question']], axis=0).unique()
+    all_text = pd.concat([dataframe['context'], dataframe['question']], axis=0).unique()  #
     df_word_listing = get_word_listing(all_text)
+
     df_tokenizer, df_word_to_idx, df_idx_to_word = tokenize(df_word_listing)
     df_co_occurrence_matrix = get_co_occurrence_matrix(all_text, df_word_to_idx)
 
@@ -291,21 +293,21 @@ def create_pos_dicts(pos_listing=POS_LISTING):
     @return: pos to idx, idx to pos
     """
     print("Creating dictionaries for POS tags...")
-    tag2idx = OrderedDict({tag: idx for idx, tag in enumerate(pos_listing)})
-    idx2tag = OrderedDict({idx: tag for tag, idx in tag2idx.items()})
+    pos2idx = OrderedDict({tag: idx for idx, tag in enumerate(pos_listing)})
+    idx2pos = OrderedDict({idx: tag for tag, idx in pos2idx.items()})
     # inserting pad token with idx=0 and moving first one to last
-    tag2idx.update({(list(tag2idx.keys()))[0]: len(tag2idx)})
-    idx2tag.update({len(idx2tag): (list(idx2tag.values()))[0]})
-    tag2idx.move_to_end((list(tag2idx.keys()))[0], last=True)
-    idx2tag.move_to_end(0, last=True)
-    tag2idx.update({'<PAD>': 0})
-    idx2tag.update({0: '<PAD>'})
-    tag2idx.move_to_end('<PAD>', last=False)
-    idx2tag.move_to_end(0, last=False)
+    pos2idx.update({(list(pos2idx.keys()))[0]: len(pos2idx)})
+    idx2pos.update({len(idx2pos): (list(idx2pos.values()))[0]})
+    pos2idx.move_to_end((list(pos2idx.keys()))[0], last=True)
+    idx2pos.move_to_end(0, last=True)
+    pos2idx.update({'<PAD>': 0})
+    idx2pos.update({0: '<PAD>'})
+    pos2idx.move_to_end('<PAD>', last=False)
+    idx2pos.move_to_end(0, last=False)
     pos_listing = list(pos_listing)
     pos_listing.append(pos_listing.pop(0))
     pos_listing.insert(0, '<PAD>')
-    return tag2idx, idx2tag
+    return pos2idx, idx2pos
 
 
 def compute_pos(df, tag2idx, max_context_length):
@@ -320,9 +322,9 @@ def compute_pos(df, tag2idx, max_context_length):
     docs = nlp.pipe(df.context, disable=["tok2vec", "ner", "lemmatizer"])
     postags = [[token.tag_ for token in doc] for doc in docs]
     # convert to integers using dict
-    all = [[tag2idx[tag] for tag in context] for context in postags]
+    indexed_pos = [[tag2idx[tag] for tag in context] for context in postags]
     print("Padding POS sequences...")
-    padded_pos = pad_sequences(all, padding="post", value=tag2idx['<PAD>'],
+    padded_pos = pad_sequences(indexed_pos, padding="post", value=tag2idx['<PAD>'],
                                maxlen=max_context_length, truncating='post')
     dict_pos = dict(zip(df.context, padded_pos))
     pos_tmp = df.context.apply(lambda x: dict_pos.get(x))
@@ -370,7 +372,7 @@ def compute_ner(df, ner2idx, max_context_length):
     print("Computing NER tags...")
     docs = nlp.pipe(df.context, disable=["tok2vec", "tagger", "lemmatizer"])
     nertags = [[(ent.text, ent.label_) for ent in doc.ents] for doc in docs]
-    all = []
+    indexed_ner = []
     # convert to integers using dict
     for i in range(0, len(nertags)):
         k = 0
@@ -382,10 +384,10 @@ def compute_ner(df, ner2idx, max_context_length):
                     if word == df.context[i].split()[k]:
                         sentence[k] = ner2idx[second]
                         break
-        all.append(sentence)
-    all = np.array(all, dtype=object)
+        indexed_ner.append(sentence)
+    indexed_ner = np.array(indexed_ner, dtype=object)
     print("Padding NER sequences...")
-    padded_ner = pad_sequences(all, padding="post", value=ner2idx['<PAD>'],
+    padded_ner = pad_sequences(indexed_ner, padding="post", value=ner2idx['<PAD>'],
                                maxlen=max_context_length, truncating='post')
 
     dict_pos = dict(zip(df.context, padded_ner))
