@@ -174,11 +174,11 @@ def apply_preprocessing(df, pipeline, text=True):
              dataset containing only distinct contexts
     """
     # get distinct contexts
-    tmp = pd.DataFrame(df.context.unique(), columns=['context'])
+    unique_contexts = pd.DataFrame(df.context.unique(), columns=['context'])
     # apply preprocessing on distinct contexts
-    tmp.context = tmp.context.apply(lambda x: preprocessing(x, pipeline))
+    unique_contexts.context = unique_contexts.context.apply(lambda x: preprocessing(x, pipeline))
     # mapping:  not_preprocessed_context -> preprocessed_context
-    dict_context = dict(zip(df.context.unique(), tmp.context))
+    dict_context = dict(zip(df.context.unique(), unique_contexts.context))
     # substitute not_preprocessed_context with preprocessed_context
     df.context = df.context.apply(lambda x: dict_context.get(x))
 
@@ -186,4 +186,4 @@ def apply_preprocessing(df, pipeline, text=True):
         df['text'] = df['text'].apply(lambda x: preprocessing(x, pipeline))
 
     df['question'] = df['question'].apply(lambda x: preprocessing(x, pipeline))
-    return df, tmp
+    return df, unique_contexts
