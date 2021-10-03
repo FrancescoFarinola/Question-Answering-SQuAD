@@ -20,6 +20,15 @@ class AlignedQ(layers.Layer):
         alpha_q = self.alpha2(q)
         return Attention()([alpha_p, q, alpha_q])
 
+    def get_config(self):
+        config = super().get_config()
+        config.update({"units": self.units})
+        return config
+
+    @classmethod
+    def from_config(cls, config):
+        return cls(**config)
+
 
 class WeightedSum(layers.Layer):
     def __init__(self):
@@ -43,6 +52,15 @@ class SimilarityS(layers.Layer):
         pWSq = Dot(-1)([p, WSq])
         return tf.squeeze(pWSq, -1)
 
+    def get_config(self):
+        config = super().get_config()
+        config.update({"units": self.units})
+        return config
+
+    @classmethod
+    def from_config(cls, config):
+        return cls(**config)
+
 
 class SimilarityE(layers.Layer):
     def __init__(self, units=UNITS * 2):
@@ -54,6 +72,15 @@ class SimilarityE(layers.Layer):
         WEq = tf.expand_dims(self.WE(q), 1)
         pWEq = Dot(-1)([p, WEq])
         return tf.squeeze(pWEq, -1)
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({"units": self.units})
+        return config
+
+    @classmethod
+    def from_config(cls, config):
+        return cls(**config)
 
 
 class Prediction(layers.Layer):
@@ -73,7 +100,7 @@ def build_model(max_question_length, max_context_length, embedding_dim, embeddin
                 ner_embedding_matrix):
     # inputs
     VOCAB_SIZE = embedding_matrix.shape[0]
-    UNITS = int(embedding_dim / 2)
+    units = int(embedding_dim / 2)
     input_question = Input(shape=(max_question_length,), dtype='int32', name='question')
     input_context = Input(shape=(max_context_length,), dtype='int32', name='context')
     input_em = Input(shape=(max_context_length, 3), dtype='float32', name='em')
@@ -102,24 +129,24 @@ def build_model(max_question_length, max_context_length, embedding_dim, embeddin
                              embeddings_initializer=Constant(ner_embedding_matrix),
                              name='ner_encoding')(input_ner)
 
-    q0 = Bidirectional(GRU(UNITS, return_sequences=True), name='q0')(question_encoding)
-    p0 = Bidirectional(GRU(UNITS, return_sequences=True), name='p0')(paragraph_encoding)
+    q0 = Bidirectional(GRU(units, return_sequences=True), name='q0')(question_encoding)
+    p0 = Bidirectional(GRU(units, return_sequences=True), name='p0')(paragraph_encoding)
 
     aligned_q = AlignedQ()([p0, q0])
 
-    p00 = Bidirectional(LSTM(UNITS, return_sequences=True), name='p00')(Concatenate()([aligned_q, p0]))
+    p00 = Bidirectional(LSTM(units, return_sequences=True), name='p00')(Concatenate()([aligned_q, p0]))
 
     # input for P rnn
     concat = Concatenate(axis=-1, name='concat')([p00, pos_encoding, ner_encoding, input_em,
                                                   input_tf])
 
     # P rnn
-    p = Bidirectional(GRU(UNITS, return_sequences=True), name='p1')(concat)
-    p = Bidirectional(GRU(UNITS, return_sequences=True), name='p2')(p)
+    p = Bidirectional(GRU(units, return_sequences=True), name='p1')(concat)
+    p = Bidirectional(GRU(units, return_sequences=True), name='p2')(p)
 
     # Q rnn
-    q = Bidirectional(GRU(UNITS, return_sequences=True), name='q1')(q0)  # (question_encoding)
-    q = Bidirectional(GRU(UNITS, return_sequences=True), name='q2')(q)
+    q = Bidirectional(GRU(units, return_sequences=True), name='q1')(q0)  # (question_encoding)
+    q = Bidirectional(GRU(units, return_sequences=True), name='q2')(q)
 
     # weighted sum q = sum(b*q), b is the weight vector
     q2 = WeightedSum()(q)
