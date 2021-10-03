@@ -5,21 +5,22 @@ from tensorflow.keras.initializers import Constant
 from tensorflow.keras.models import Model
 from tensorflow.keras import layers
 from tensorflow.keras import backend as K
+from settings import CHAR_EMBEDDING_DIM
 
 
 class SimilarityLayer(layers.Layer):
     def __init__(self, max_question_length, max_context_length, **kwargs):
         super(SimilarityLayer, self).__init__(**kwargs)
-        self.MAX_QUESTION_LENGTH = max_question_length
-        self.MAX_CONTEXT_LENGTH = max_context_length
+        self.max_question_length = max_question_length
+        self.max_context_length = max_context_length
 
     def build(self, input_shape):
         self.w = self.add_weight(shape=(input_shape[0][-1] * 3, 1), trainable=True, name='sim_w')
 
     def call(self, inputs, **kwargs):
         H, U = inputs
-        H_dim_repeat = [1, 1, self.MAX_QUESTION_LENGTH, 1]
-        U_dim_repeat = [1, self.MAX_CONTEXT_LENGTH, 1, 1]
+        H_dim_repeat = [1, 1, self.max_question_length, 1]
+        U_dim_repeat = [1, self.max_context_length, 1, 1]
         repeated_H = K.tile(K.expand_dims(H, axis=2), H_dim_repeat)
         repeated_U = K.tile(K.expand_dims(U, axis=1), U_dim_repeat)
         element_wise_multiply = repeated_H * repeated_U
@@ -30,7 +31,8 @@ class SimilarityLayer(layers.Layer):
 
     def get_config(self):
         config = super().get_config()
-        # config.update({"units": self.units})
+        config.update({"max_question_length": self.max_question_length,
+                       "max_context_length": self.max_context_length})
         return config
 
     @classmethod
@@ -60,19 +62,19 @@ class C2Q(layers.Layer):
 class Q2C(layers.Layer):
     def __init__(self, max_context_length, **kwargs):
         super(Q2C, self).__init__(**kwargs)
-        self.MAX_CONTEXT_LENGTH = max_context_length
+        self.max_context_length = max_context_length
 
     def call(self, inputs, **kwargs):
         H, S = inputs
         b = Softmax(name='b')(K.max(S, axis=-1))
         b = tf.expand_dims(b, -1)
-        # h_ = b*H
         h_ = K.sum(b * H, -2)
         h_2 = K.expand_dims(h_, 1)
-        return K.tile(h_2, [1, self.MAX_CONTEXT_LENGTH, 1])
+        return K.tile(h_2, [1, self.max_context_length, 1])
 
     def get_config(self):
         config = super().get_config()
+        config.update({"max_context_length": self.max_context_length})
         return config
 
     @classmethod
@@ -120,21 +122,17 @@ class Prediction(layers.Layer):
         return cls(**config)
 
 
-def build_model(max_question_length, max_context_length, embedding_dim,
-                embedding_matrix, char_embedding_matrix, pos_embedding_matrix, ner_embedding_matrix):
+def build_model(max_question_length, max_context_length, embedding_dim, embedding_matrix, char_embedding_matrix,
+                pos_embedding_matrix, ner_embedding_matrix):
     VOCAB_SIZE = embedding_matrix.shape[0]
-    CHAR_EMBEDDING_DIM = 50
-    UNITS = int(embedding_dim / 2)
+    units = int(embedding_dim / 4)
     # inputs
     input_question = Input(shape=(max_question_length,), dtype='int32', name='question')
     input_context = Input(shape=(max_context_length,), dtype='int32', name='context')
     input_em = Input(shape=(max_context_length, 3), dtype='float32', name='em')
     input_pos = Input(shape=(max_context_length,), dtype='int32', name='pos')
     input_ner = Input(shape=(max_context_length,), dtype='int32', name='ner')
-
     input_tf = Input(shape=(max_context_length, 1), dtype='float32', name='tf')
-
-    # input_dep = Input(shape=(MAX_CONTEXT_LENGTH, MAX_CONTEXT_LENGTH), dtype='bool', name='dep')
 
     # encodings
     question_encoding = Embedding(VOCAB_SIZE, embedding_dim, trainable=False,
@@ -168,17 +166,16 @@ def build_model(max_question_length, max_context_length, embedding_dim,
                                         name='char_p_encoding')(input_context)
 
     p = Concatenate(-1, name='concat_p')([paragraph_encoding, char_paragraph_encoding])
-    p2 = Dense(2 * UNITS, 'relu', name='dense_p')(p)
+    p2 = Dense(2 * units, 'relu', name='dense_p')(p)
 
     q = Concatenate(-1, name='concat_q')([question_encoding, char_question_encoding])
-    q2 = Dense(2 * UNITS, 'relu', name='dense_q')(q)
+    q2 = Dense(2 * units, 'relu', name='dense_q')(q)
 
     # P rnn
-    H = Bidirectional(GRU(UNITS, return_sequences=True, dropout=0.3, name='H'), name='biH')(
-        p2)  # (paragraph_encoding)
+    H = Bidirectional(GRU(units, return_sequences=True, dropout=0.3, name='H'), name='biH')(p2)
 
     # Q rnn
-    U = Bidirectional(GRU(UNITS, return_sequences=True, dropout=0.3, name='U'), name='biU')(q2)  # (question_encoding)
+    U = Bidirectional(GRU(units, return_sequences=True, dropout=0.3, name='U'), name='biU')(q2)
 
     S = SimilarityLayer(max_question_length, max_context_length, name='S')([H, U])
 
@@ -188,17 +185,18 @@ def build_model(max_question_length, max_context_length, embedding_dim,
 
     G = MergeG(name='G')([H, U_, H_, input_em, pos_encoding, ner_encoding, input_tf])
 
-    M = Bidirectional(GRU(UNITS, return_sequences=True, dropout=0.3), name='M')(G)
+    M = Bidirectional(GRU(units, return_sequences=True, dropout=0.3), name='M')(G)
 
     GM = Concatenate(name='GM')([G, M])
     start = layers.TimeDistributed(Dense(1, name='dense_s'), name='td_s')(GM)
     start = Softmax(name='start_')(tf.squeeze(start, -1))
 
-    M2 = Bidirectional(GRU(UNITS, return_sequences=True, dropout=0.3), name='M2')(M)
+    M2 = Bidirectional(GRU(units, return_sequences=True, dropout=0.3), name='M2')(M)
     GM2 = Concatenate(name='GM2')([G, M2])
     end = layers.TimeDistributed(Dense(1, name='dense_e'), name='td_e')(GM2)
     end = Softmax(name='end_')(tf.squeeze(end, -1))
 
+    # start and end indices (max distance 15)
     outer = Prediction(name='prediction')([start, end])
     start_pos = Lambda(lambda x: tf.reduce_max(x, axis=2), name='start')(outer)
     end_pos = Lambda(lambda x: tf.reduce_max(x, axis=1), name='end')(outer)
