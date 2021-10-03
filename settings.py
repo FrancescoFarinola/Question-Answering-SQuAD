@@ -7,10 +7,10 @@ MODEL = 'our_model'
 
 EPOCHS = 10
 
-BATCH_SIZE = 8
+BATCH_SIZE = 16
 
 MODELS_DIR = "./models"
-DATA_DIR =  "./data"
+DATA_DIR = "./data"
 
 MAX_CONTEXT_LENGTH = 728
 MAX_TEXT_LENGTH = 47
