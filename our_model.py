@@ -30,7 +30,7 @@ class SimilarityLayer(layers.Layer):
         return dot_product
 
     def get_config(self):
-        config = super().get_config()
+        config = super(SimilarityLayer, self).get_config()
         config.update({"max_question_length": self.max_question_length,
                        "max_context_length": self.max_context_length})
         return config
@@ -51,7 +51,7 @@ class C2Q(layers.Layer):
         return K.sum(K.expand_dims(a, axis=-1) * U2, -2)
 
     def get_config(self):
-        config = super().get_config()
+        config = super(C2Q, self).get_config()
         return config
 
     @classmethod
@@ -73,7 +73,7 @@ class Q2C(layers.Layer):
         return K.tile(h_2, [1, self.max_context_length, 1])
 
     def get_config(self):
-        config = super().get_config()
+        config = super(Q2C, self).get_config()
         config.update({"max_context_length": self.max_context_length})
         return config
 
@@ -93,7 +93,7 @@ class MergeG(layers.Layer):
         return K.concatenate([H, U_, HU_, HH_, em, pos, ner, tfidf])
 
     def get_config(self):
-        config = super().get_config()
+        config = super(MergeG, self).get_config()
         return config
 
     @classmethod
@@ -114,7 +114,7 @@ class Prediction(layers.Layer):
         return outer
 
     def get_config(self):
-        config = super().get_config()
+        config = super(Prediction, self).get_config()
         return config
 
     @classmethod
@@ -125,7 +125,7 @@ class Prediction(layers.Layer):
 def build_model(max_question_length, max_context_length, embedding_dim, embedding_matrix, char_embedding_matrix,
                 pos_embedding_matrix, ner_embedding_matrix):
     VOCAB_SIZE = embedding_matrix.shape[0]
-    units = int(embedding_dim / 4)
+    units = 100
     # inputs
     input_question = Input(shape=(max_question_length,), dtype='int32', name='question')
     input_context = Input(shape=(max_context_length,), dtype='int32', name='context')
@@ -166,10 +166,10 @@ def build_model(max_question_length, max_context_length, embedding_dim, embeddin
                                         name='char_p_encoding')(input_context)
 
     p = Concatenate(-1, name='concat_p')([paragraph_encoding, char_paragraph_encoding])
-    p2 = Dense(2 * units, 'relu', name='dense_p')(p)
+    p2 = Dense(units, 'relu', name='dense_p')(p)
 
     q = Concatenate(-1, name='concat_q')([question_encoding, char_question_encoding])
-    q2 = Dense(2 * units, 'relu', name='dense_q')(q)
+    q2 = Dense(units, 'relu', name='dense_q')(q)
 
     # P rnn
     H = Bidirectional(GRU(units, return_sequences=True, dropout=0.3, name='H'), name='biH')(p2)

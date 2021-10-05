@@ -7,12 +7,12 @@ from tensorflow.keras.models import Model
 
 UNITS = 100
 
-
 class AlignedQ(layers.Layer):
     def __init__(self, units=UNITS * 2):
         super(AlignedQ, self).__init__(name='AlignedQ')
-        self.alpha1 = Dense(units, 'relu')
-        self.alpha2 = Dense(units, 'relu')
+        self.units = units
+        self.alpha1 = Dense(self.units, 'relu')
+        self.alpha2 = Dense(self.units, 'relu')
 
     def call(self, inputs, **kwargs):
         p, q = inputs
@@ -21,7 +21,7 @@ class AlignedQ(layers.Layer):
         return Attention()([alpha_p, q, alpha_q])
 
     def get_config(self):
-        config = super().get_config()
+        config = super(AlignedQ, self).get_config()
         config.update({"units": self.units})
         return config
 
@@ -39,12 +39,21 @@ class WeightedSum(layers.Layer):
         q = inputs
         b = self.w(q)
         return tf.math.reduce_sum(b * q, 1)
+        
+    def get_config(self):
+        config = super(WeightedSum, self).get_config()
+        return config
+
+    @classmethod
+    def from_config(cls, config):
+        return cls(**config)
 
 
 class SimilarityS(layers.Layer):
     def __init__(self, units=UNITS * 2):
         super(SimilarityS, self).__init__(name='start_sim')
-        self.WS = Dense(units)
+        self.units = units
+        self.WS = Dense(self.units)
 
     def call(self, inputs, **kwargs):
         p, q = inputs
@@ -53,7 +62,7 @@ class SimilarityS(layers.Layer):
         return tf.squeeze(pWSq, -1)
 
     def get_config(self):
-        config = super().get_config()
+        config = super(SimilarityS, self).get_config()
         config.update({"units": self.units})
         return config
 
@@ -65,6 +74,7 @@ class SimilarityS(layers.Layer):
 class SimilarityE(layers.Layer):
     def __init__(self, units=UNITS * 2):
         super(SimilarityE, self).__init__(name='end_sim')
+        self.units = units
         self.WE = Dense(units)
 
     def call(self, inputs, **kwargs):
@@ -74,7 +84,7 @@ class SimilarityE(layers.Layer):
         return tf.squeeze(pWEq, -1)
 
     def get_config(self):
-        config = super().get_config()
+        config = super(SimilarityE, self).get_config()
         config.update({"units": self.units})
         return config
 
@@ -94,13 +104,21 @@ class Prediction(layers.Layer):
         outer = tf.matmul(s, e)
         outer = tf.linalg.band_part(outer, 0, 15)
         return outer
+        
+    def get_config(self):
+        config = super(Prediction, self).get_config()
+        return config
+
+    @classmethod
+    def from_config(cls, config):
+        return cls(**config)
 
 
 def build_model(max_question_length, max_context_length, embedding_dim, embedding_matrix, pos_embedding_matrix,
                 ner_embedding_matrix):
     # inputs
     VOCAB_SIZE = embedding_matrix.shape[0]
-    units = int(embedding_dim / 2)
+    units = 100
     input_question = Input(shape=(max_question_length,), dtype='int32', name='question')
     input_context = Input(shape=(max_context_length,), dtype='int32', name='context')
     input_em = Input(shape=(max_context_length, 3), dtype='float32', name='em')
@@ -129,24 +147,23 @@ def build_model(max_question_length, max_context_length, embedding_dim, embeddin
                              embeddings_initializer=Constant(ner_embedding_matrix),
                              name='ner_encoding')(input_ner)
 
-    q0 = Bidirectional(GRU(units, return_sequences=True), name='q0')(question_encoding)
-    p0 = Bidirectional(GRU(units, return_sequences=True), name='p0')(paragraph_encoding)
+    q0 = Bidirectional(GRU(units, return_sequences=True, dropout=0.5), name='q0')(question_encoding)
+    p0 = Bidirectional(GRU(units, return_sequences=True, dropout=0.5), name='p0')(paragraph_encoding)
 
     aligned_q = AlignedQ()([p0, q0])
 
-    p00 = Bidirectional(LSTM(units, return_sequences=True), name='p00')(Concatenate()([aligned_q, p0]))
+    p00 = Bidirectional(GRU(units, return_sequences=True, dropout=0.5), name='p00')(Concatenate()([aligned_q, p0]))
 
     # input for P rnn
-    concat = Concatenate(axis=-1, name='concat')([p00, pos_encoding, ner_encoding, input_em,
-                                                  input_tf])
+    concat = Concatenate(axis=-1, name='concat')([p00, pos_encoding, ner_encoding, input_em, input_tf])
 
     # P rnn
-    p = Bidirectional(GRU(units, return_sequences=True), name='p1')(concat)
-    p = Bidirectional(GRU(units, return_sequences=True), name='p2')(p)
+    p = Bidirectional(GRU(units, return_sequences=True, dropout=0.5), name='p1')(concat)
+    #p = Bidirectional(GRU(units, return_sequences=True), name='p2')(p)
 
     # Q rnn
-    q = Bidirectional(GRU(units, return_sequences=True), name='q1')(q0)  # (question_encoding)
-    q = Bidirectional(GRU(units, return_sequences=True), name='q2')(q)
+    q = Bidirectional(GRU(units, return_sequences=True, dropout=0.5), name='q1')(q0)  # (question_encoding)
+    #q = Bidirectional(GRU(units, return_sequences=True), name='q2')(q)
 
     # weighted sum q = sum(b*q), b is the weight vector
     q2 = WeightedSum()(q)
