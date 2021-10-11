@@ -125,7 +125,7 @@ class Prediction(layers.Layer):
 def build_model(max_question_length, max_context_length, embedding_dim, embedding_matrix, char_embedding_matrix,
                 pos_embedding_matrix, ner_embedding_matrix):
     VOCAB_SIZE = embedding_matrix.shape[0]
-    units = 100
+    units = 50 #100
     # inputs
     input_question = Input(shape=(max_question_length,), dtype='int32', name='question')
     input_context = Input(shape=(max_context_length,), dtype='int32', name='context')
@@ -166,16 +166,16 @@ def build_model(max_question_length, max_context_length, embedding_dim, embeddin
                                         name='char_p_encoding')(input_context)
 
     p = Concatenate(-1, name='concat_p')([paragraph_encoding, char_paragraph_encoding])
-    p2 = Dense(units, 'relu', name='dense_p')(p)
+    p2 = Dense(2*units, 'relu', name='dense_p')(p)
 
     q = Concatenate(-1, name='concat_q')([question_encoding, char_question_encoding])
-    q2 = Dense(units, 'relu', name='dense_q')(q)
+    q2 = Dense(2*units, 'relu', name='dense_q')(q)
 
     # P rnn
-    H = Bidirectional(GRU(units, return_sequences=True, dropout=0.3, name='H'), name='biH')(p2)
+    H = Bidirectional(GRU(units, return_sequences=True, dropout=0.2, name='H'), name='biH')(p2)
 
     # Q rnn
-    U = Bidirectional(GRU(units, return_sequences=True, dropout=0.3, name='U'), name='biU')(q2)
+    U = Bidirectional(GRU(units, return_sequences=True, dropout=0.2, name='U'), name='biU')(q2)
 
     S = SimilarityLayer(max_question_length, max_context_length, name='S')([H, U])
 
@@ -185,13 +185,13 @@ def build_model(max_question_length, max_context_length, embedding_dim, embeddin
 
     G = MergeG(name='G')([H, U_, H_, input_em, pos_encoding, ner_encoding, input_tf])
 
-    M = Bidirectional(GRU(units, return_sequences=True, dropout=0.3), name='M')(G)
+    M = Bidirectional(GRU(units, return_sequences=True, dropout=0.2), name='M')(G)
 
     GM = Concatenate(name='GM')([G, M])
     start = layers.TimeDistributed(Dense(1, name='dense_s'), name='td_s')(GM)
     start = Softmax(name='start_')(tf.squeeze(start, -1))
 
-    M2 = Bidirectional(GRU(units, return_sequences=True, dropout=0.3), name='M2')(M)
+    M2 = Bidirectional(GRU(units, return_sequences=True, dropout=0.2), name='M2')(M)
     GM2 = Concatenate(name='GM2')([G, M2])
     end = layers.TimeDistributed(Dense(1, name='dense_e'), name='td_e')(GM2)
     end = Softmax(name='end_')(tf.squeeze(end, -1))
