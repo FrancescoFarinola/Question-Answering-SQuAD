@@ -1,6 +1,6 @@
 import pandas as pd
 import nltk
-import spacy.cli
+import spacy
 from symspellpy import SymSpell, Verbosity
 import pkg_resources
 import re
@@ -13,7 +13,6 @@ dictionary_path = pkg_resources.resource_filename(
 sym_spell.load_dictionary(dictionary_path, 0, 1)
 
 nltk.download('wordnet')
-
 spacy.cli.download("en_core_web_sm")
 nlp = spacy.load("en_core_web_sm", disable=['parser', 'senter', 'attribute_ruler'])
 STOPWORDS = nlp.Defaults.stop_words
