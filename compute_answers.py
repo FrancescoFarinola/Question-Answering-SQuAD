@@ -44,17 +44,16 @@ if __name__ == '__main__':
                                preprocess.lower,
                                preprocess.strip_text]
     df1 = df.copy()
-    df1, tmp1 = preprocess.apply_preprocessing(df1, PREPROCESSING_PIPELINE1, text=False)
+    df1, unique_contexts_df1 = preprocess.apply_preprocessing(df1, PREPROCESSING_PIPELINE1, text=False)
 
     # load already saved content
-    load = (isfile(f'{MODELS_DIR}/word_listing.csv') and
-            isfile(f'{MODELS_DIR}/word2idx.json') and
-            isfile(f'{MODELS_DIR}/idx2word.json') and
-            isfile(f'{MODELS_DIR}/tokenizer.json') and
-            isfile(f'{MODELS_DIR}/embedding_matrix.csv') and
-            # char embedding matrix is loaded only in case of 'our_model' or 'bidaf'
-            (not(MODEL == "our_model" or MODEL == 'bidaf') or
-             isfile(f"{MODELS_DIR}/char_embedding_matrix.csv")))
+    load = (isfile(f"{MODELS_DIR}/word_listing.csv") and
+            isfile(f"{MODELS_DIR}/word2idx.json") and
+            isfile(f"{MODELS_DIR}/idx2word.json") and
+            isfile(f"{MODELS_DIR}/tokenizer.json") and
+            isfile(f"{MODELS_DIR}/embedding_matrix.npz") and
+            (not (MODEL == "our_model" or MODEL == 'bidaf') or
+             isfile(f"{MODELS_DIR}/char_embedding_matrix.npz")))
     try:
         assert load
     except AssertionError:
@@ -70,7 +69,7 @@ if __name__ == '__main__':
         tokenizer_json = json.load(f)
         df_tokenizer = tokenizer_from_json(tokenizer_json)
     df_word_listing = np.genfromtxt(f'{MODELS_DIR}/word_listing.csv', delimiter=',', encoding='utf-8', dtype='str')
-    embedding_matrix = np.genfromtxt(f'{MODELS_DIR}/embedding_matrix.csv', delimiter=',')
+    embedding_matrix = np.load(f'{MODELS_DIR}/embedding_matrix.npz')['matrix']
     df_idx_to_word = dict(zip([int(k) for k in df_idx_to_word.keys()], df_idx_to_word.values()))
     print("Done")
 
@@ -87,8 +86,12 @@ if __name__ == '__main__':
 
         em_input = utils.compute_exact_match(df1, MAX_CONTEXT_LENGTH)
         tf_input = utils.compute_tf(df1, MAX_CONTEXT_LENGTH)
-        pos_input = utils.compute_pos(df1, tag2idx, MAX_CONTEXT_LENGTH)
-        ner_input = utils.compute_ner(df1, ner2idx, MAX_CONTEXT_LENGTH)
+        pos_input = utils.compute_pos(df1, unique_contexts_df1, tag2idx, MAX_CONTEXT_LENGTH)
+        #ner_input = utils.compute_ner(df1, unique_contexts_df1, ner2idx, MAX_CONTEXT_LENGTH)
+
+        import pandas as pd
+        un_contexts = pd.DataFrame(df.context.unique(), columns=['context'])
+        ner_input = utils.compute_ner(df1, unique_contexts_df1, un_contexts, ner2idx, MAX_CONTEXT_LENGTH)
 
         x = {'context': context_padded, 'question': question_padded, 'pos': pos_input,
              'ner': ner_input, 'em': em_input, 'tf': tf_input}
@@ -98,7 +101,7 @@ if __name__ == '__main__':
             model = drqa_model.build_model(MAX_QUESTION_LENGTH, MAX_CONTEXT_LENGTH, EMBEDDING_DIM,
                                            embedding_matrix, pos_embedding_matrix, ner_embedding_matrix)
         else:
-            char_embedding_matrix = np.genfromtxt(f'{MODELS_DIR}/char_embedding_matrix.csv', delimiter=',')
+            char_embedding_matrix = np.load(f'{MODELS_DIR}/char_embedding_matrix.npz')['matrix']
             model = our_model.build_model(MAX_QUESTION_LENGTH, MAX_CONTEXT_LENGTH, EMBEDDING_DIM,
                                           embedding_matrix, char_embedding_matrix, pos_embedding_matrix,
                                           ner_embedding_matrix)
@@ -107,7 +110,7 @@ if __name__ == '__main__':
 
         # build model
         if MODEL == 'bidaf':
-            char_embedding_matrix = np.genfromtxt(f'{MODELS_DIR}/char_embedding_matrix.csv', delimiter=',')
+            char_embedding_matrix = np.load(f'{MODELS_DIR}/char_embedding_matrix.npz')['matrix']
             model = bidaf_model.build_model(MAX_QUESTION_LENGTH, MAX_CONTEXT_LENGTH, EMBEDDING_DIM,
                                             embedding_matrix, char_embedding_matrix)
 
