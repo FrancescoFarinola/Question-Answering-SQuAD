@@ -125,7 +125,7 @@ class Prediction(layers.Layer):
 def build_model(max_question_length, max_context_length, embedding_dim, embedding_matrix, char_embedding_matrix,
                 pos_embedding_matrix, ner_embedding_matrix):
     VOCAB_SIZE = embedding_matrix.shape[0]
-    units = 50 #100
+    units = 50
     # inputs
     input_question = Input(shape=(max_question_length,), dtype='int32', name='question')
     input_context = Input(shape=(max_context_length,), dtype='int32', name='context')

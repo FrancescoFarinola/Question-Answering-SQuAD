@@ -8,11 +8,10 @@ from tensorflow.python.keras.utils.np_utils import to_categorical
 import preprocess
 import load_data
 import utils
-import drqa_model
-import bidaf_model
 import our_model
+import pandas as pd
 
-from settings import MAX_CONTEXT_LENGTH, MAX_QUESTION_LENGTH, MODEL, MODELS_DIR, BATCH_SIZE, EMBEDDING_DIM
+from settings import MAX_CONTEXT_LENGTH, MAX_QUESTION_LENGTH, MODELS_DIR, BATCH_SIZE, EMBEDDING_DIM
 
 if __name__ == '__main__':
     # name of the input file
@@ -44,7 +43,7 @@ if __name__ == '__main__':
                                preprocess.lower,
                                preprocess.strip_text]
     df1 = df.copy()
-    df1, unique_contexts_df1 = preprocess.apply_preprocessing(df1, PREPROCESSING_PIPELINE1, text=False)
+    df1, contexts_df1 = preprocess.apply_preprocessing(df1, PREPROCESSING_PIPELINE1, text=False)
 
     # load already saved content
     load = (isfile(f"{MODELS_DIR}/word_listing.csv") and
@@ -52,8 +51,7 @@ if __name__ == '__main__':
             isfile(f"{MODELS_DIR}/idx2word.json") and
             isfile(f"{MODELS_DIR}/tokenizer.json") and
             isfile(f"{MODELS_DIR}/embedding_matrix.npz") and
-            (not (MODEL == "our_model" or MODEL == 'bidaf') or
-             isfile(f"{MODELS_DIR}/char_embedding_matrix.npz")))
+            isfile(f"{MODELS_DIR}/char_embedding_matrix.npz"))
     try:
         assert load
     except AssertionError:
@@ -77,45 +75,27 @@ if __name__ == '__main__':
     context_padded = utils.pad(df1.context, df_tokenizer, MAX_CONTEXT_LENGTH)
     question_padded = utils.pad(df1.question, df_tokenizer, MAX_QUESTION_LENGTH)
 
-    if MODEL == 'drqa' or MODEL == "our_model":
-        # compute pos, ner, em, tf
-        tag2idx, idx2tag = utils.create_pos_dicts()
-        ner2idx, idx2ner = utils.create_ner_dicts()
-        pos_embedding_matrix = to_categorical(list(idx2tag.keys()))
-        ner_embedding_matrix = to_categorical(list(idx2ner.keys()))
+    # compute pos, ner, em, tf
+    tag2idx, idx2tag = utils.create_pos_dicts()
+    ner2idx, idx2ner = utils.create_ner_dicts()
+    pos_embedding_matrix = to_categorical(list(idx2tag.keys()))
+    ner_embedding_matrix = to_categorical(list(idx2ner.keys()))
 
-        em_input = utils.compute_exact_match(df1, MAX_CONTEXT_LENGTH)
-        tf_input = utils.compute_tf(df1, MAX_CONTEXT_LENGTH)
-        pos_input = utils.compute_pos(df1, unique_contexts_df1, tag2idx, MAX_CONTEXT_LENGTH)
-        #ner_input = utils.compute_ner(df1, unique_contexts_df1, ner2idx, MAX_CONTEXT_LENGTH)
+    em_input = utils.compute_exact_match(df1, MAX_CONTEXT_LENGTH)
+    tf_input = utils.compute_tf(df1, MAX_CONTEXT_LENGTH)
+    pos_input = utils.compute_pos(df1, contexts_df1, tag2idx, MAX_CONTEXT_LENGTH)
 
-        import pandas as pd
-        un_contexts = pd.DataFrame(df.context.unique(), columns=['context'])
-        ner_input = utils.compute_ner(df1, unique_contexts_df1, un_contexts, ner2idx, MAX_CONTEXT_LENGTH)
+    contexts = pd.DataFrame(df.context.unique(), columns=['context'])
+    ner_input = utils.compute_ner(df1, contexts_df1, contexts, ner2idx, MAX_CONTEXT_LENGTH)
 
-        x = {'context': context_padded, 'question': question_padded, 'pos': pos_input,
-             'ner': ner_input, 'em': em_input, 'tf': tf_input}
+    x = {'context': context_padded, 'question': question_padded, 'pos': pos_input,
+         'ner': ner_input, 'em': em_input, 'tf': tf_input}
 
-        # build model
-        if MODEL == 'drqa':
-            model = drqa_model.build_model(MAX_QUESTION_LENGTH, MAX_CONTEXT_LENGTH, EMBEDDING_DIM,
-                                           embedding_matrix, pos_embedding_matrix, ner_embedding_matrix)
-        else:
-            char_embedding_matrix = np.load(f'{MODELS_DIR}/char_embedding_matrix.npz')['matrix']
-            model = our_model.build_model(MAX_QUESTION_LENGTH, MAX_CONTEXT_LENGTH, EMBEDDING_DIM,
-                                          embedding_matrix, char_embedding_matrix, pos_embedding_matrix,
-                                          ner_embedding_matrix)
-    else:
-        x = {'context': context_padded, 'question': question_padded}
-
-        # build model
-        if MODEL == 'bidaf':
-            char_embedding_matrix = np.load(f'{MODELS_DIR}/char_embedding_matrix.npz')['matrix']
-            model = bidaf_model.build_model(MAX_QUESTION_LENGTH, MAX_CONTEXT_LENGTH, EMBEDDING_DIM,
-                                            embedding_matrix, char_embedding_matrix)
-
+    char_embedding_matrix = np.load(f'{MODELS_DIR}/char_embedding_matrix.npz')['matrix']
+    model = our_model.build_model(MAX_QUESTION_LENGTH, MAX_CONTEXT_LENGTH, EMBEDDING_DIM, embedding_matrix,
+                                  char_embedding_matrix, pos_embedding_matrix, ner_embedding_matrix)
     # load model weights
-    model.load_weights(f"{MODELS_DIR}/{MODEL}_weights.h5")
+    model.load_weights(f"{MODELS_DIR}/our_model_weights.h5")
 
     # compute and save predictions
     predictions = utils.computing_predictions(model, df, x, BATCH_SIZE)

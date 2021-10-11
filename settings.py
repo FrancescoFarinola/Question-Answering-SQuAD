@@ -1,12 +1,7 @@
 EMBEDDING_DIM = 100
 CHAR_EMBEDDING_DIM = 50
-#MODEL = 'baseline' #not implemented yet
-#MODEL = 'drqa'
-#MODEL = 'bidaf'
-MODEL = 'our_model'
 
 EPOCHS = 15
-
 BATCH_SIZE = 16
 
 MODELS_DIR = "./models"
