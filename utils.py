@@ -13,7 +13,7 @@ import re
 from sklearn.feature_extraction.text import CountVectorizer
 from settings import CHAR_EMBEDDING_DIM, BATCH_SIZE
 from preprocess import preprocessing, expand_contractions, tokenization_spacy, split_alpha_num_sym, strip_text, \
-    CHARS_TO_SPACE, CHARS_TO_REMOVE, spell_correction, lemmatization, lower  #, remove_chars
+    CHARS_TO_SPACE, CHARS_TO_REMOVE, spell_correction, lemmatization, lower
 
 
 POS_LISTING = ["$", "``", "''", ",", "-LRB-", "-RRB-", ".", ":", "ADD", "AFX", "CC", "CD", "DT",
@@ -312,7 +312,7 @@ def create_pos_dicts(pos_listing=POS_LISTING):
     return pos2idx, idx2pos
 
 
-def compute_pos(df, unique_contexts_df, tag2idx, max_context_length):
+def compute_pos(df, contexts, tag2idx, max_context_length):
     """
     Compute POS
     @param df: dataframe
@@ -321,14 +321,14 @@ def compute_pos(df, unique_contexts_df, tag2idx, max_context_length):
     @return: pos dataframe
     """
     print("Computing POS tags...")
-    docs = nlp.pipe(unique_contexts_df.context, disable=["ner", "lemmatizer"]) # ho tolto tok2vec
+    docs = nlp.pipe(contexts.context, disable=["ner", "lemmatizer"])
     postags = [[token.tag_ for token in doc] for doc in docs]
     # convert to integers using dict
     indexed_pos = [[tag2idx[tag] for tag in context] for context in postags]
     print("Padding POS sequences...")
     padded_pos = pad_sequences(indexed_pos, padding="post", value=tag2idx['<PAD>'],
                                maxlen=max_context_length, truncating='post')
-    dict_pos = dict(zip(unique_contexts_df.context, padded_pos))
+    dict_pos = dict(zip(contexts.context, padded_pos))
     pos_tmp = df.context.apply(lambda x: dict_pos.get(x))
     pos = np.array([t for t in pos_tmp])
     return pos
@@ -362,120 +362,78 @@ def create_ner_dicts(ner_listing=NER_LISTING):
     idx2ner.update({len(idx2ner): 'NONE'})
     return ner2idx, idx2ner
 
-'''
-def compute_ner(df, unique_contexts_df, ner2idx, max_context_length, return_nertags=False):
-    """
-    Compute NER
-    @param df: dataframe
-    @param unique_contexts_df:
-    @param ner2idx: ner to idx
-    @param max_context_length: maximum context length
-    @return: ner dataframe
-    """
-    print("Computing NER tags...")
-    docs = nlp.pipe(unique_contexts_df.context.values, disable=["tok2vec", "tagger", "lemmatizer"])
-    nertags = [[(ent.text, ent.label_) for ent in doc.ents] for doc in docs]
-    indexed_ner = []
-    # convert to integers using dict
-    for i in range(len(nertags)):
-        k = 0
-        splits = unique_contexts_df.context[i].split()
-        sentence = np.full(shape=(len(splits)), fill_value=ner2idx['NONE'])
-        for first, second in nertags[i]:
-            for word in first.split():
-                k = k + splits[k:].index(word)
-                sentence[k] = ner2idx[second]
-                k += 1
-
-                #while not (word == splits[k]):
-                #    k += 1
-                #sentence[k] = ner2idx[second]
-
-                #for j in range(k, len(splits)):
-                #    k = j
-                #    if word == splits[k]:
-                #        sentence[k] = ner2idx[second]
-                #        break
-        indexed_ner.append(sentence)
-    indexed_ner = np.array(indexed_ner, dtype=object)
-    print("Padding NER sequences...")
-    padded_ner = pad_sequences(indexed_ner, padding="post", value=ner2idx['<PAD>'],
-                               maxlen=max_context_length, truncating='post')
-
-    dict_ner = dict(zip(unique_contexts_df.context, padded_ner))
-    ner_tmp = df.context.apply(lambda x: dict_ner.get(x))
-    ner = np.array([t for t in ner_tmp])
-    if return_nertags:
-        return ner, nertags
-    return ner
-'''
-
-#from preprocess import nlp
-#from tensorflow.keras.preprocessing.sequence import pad_sequences
-
 
 def chars_to_space(text):
+    """
+    replace chars in text with a space
+    @param text: input text
+    @return: output text
+    """
     return CHARS_TO_SPACE.sub(' ', text)
 
 
 def chars_to_remove(text):
+    """
+    remove chars from text
+    @param text: input text
+    @return: output text
+    """
     return CHARS_TO_REMOVE.sub('', text)
 
 
-def compute_ner(df, tmp_df1, unique_contexts, ner2idx, max_context_length, return_nertags=False):
+def compute_ner(df1, contexts_df1, contexts, ner2idx, max_context_length, debug=False):
     """
     Compute NER
-    @param df: dataframe
-    @param unique_contexts_df:
+    Since applying the entire preprocessing undermine correct named entity recognition,
+    first it is applied only some part of preprocessing, then ner is computed, after that
+    remaining preprocessing is applied.
+    @param df1: dataframe preprocessed with pipeline 1
+    @param contexts_df1: unique contexts from dataframe preprocessed with pipeline 1
+    @param contexts: unique contexts from original dataframe
     @param ner2idx: ner to idx
     @param max_context_length: maximum context length
+    @param debug: True if return also nertags of type string
     @return: ner dataframe
     """
-
-    pipeline = [expand_contractions, tokenization_spacy, chars_to_space, split_alpha_num_sym, strip_text]
-
-    # unique_contexts_df.context = preprocessing(unique_contexts_df.context, pipeline)
-    unique_contexts_df = unique_contexts.copy()
-    unique_contexts_df.context = unique_contexts_df.context.apply(lambda x: preprocessing(x, pipeline))
-
     print("Computing NER tags...")
+    # apply some preprocessing from PREPROCESSING_PIPELINE1
+    pipeline = [expand_contractions, tokenization_spacy, chars_to_space, split_alpha_num_sym, strip_text]
+    unique_contexts_df = contexts.copy()
+    unique_contexts_df.context = unique_contexts_df.context.apply(lambda x: preprocessing(x, pipeline))
     docs = nlp.pipe(unique_contexts_df.context.values, disable=["tok2vec", "tagger", "lemmatizer"])
+    # compute ner
     nertags = [[(ent.text, ent.label_) for ent in doc.ents] for doc in docs]
     indexed_ner = []
     # convert to integers using dict
     for i in range(len(nertags)):
+        # k is reset (k=0) at each row
         k = 0
-        splits = tmp_df1.context[i].split()  # unique_contexts_df.context[i].split()
+        splits = contexts_df1.context[i].split()
+        # all ner tags in sentences are equal to the none tag
         sentence = np.full(shape=(len(splits)), fill_value=ner2idx['NONE'])
-        for first, second in nertags[i]:
-            first = strip_text(lower(lemmatization(spell_correction(split_alpha_num_sym(chars_to_remove(first))))))
-            for word in first.split():
-                # print(i, word)
-                # print(splits[:10])
-                # word = strip_text(lower(lemmatization(spell_correction(chars_to_remove(word)))))
+        # for each tuple (words, tag)
+        for words, tag in nertags[i]:
+            # apply remaining preprocessing from PREPROCESSING_PIPELINE1
+            words = strip_text(lower(lemmatization(spell_correction(split_alpha_num_sym(chars_to_remove(words))))))
+            # match word - tag
+            for word in words.split():
                 k = k + splits[k:].index(word)
-                sentence[k] = ner2idx[second]
+                sentence[k] = ner2idx[tag]
                 k += 1
         indexed_ner.append(sentence)
     indexed_ner = np.array(indexed_ner, dtype=object)
+
     print("Padding NER sequences...")
     padded_ner = pad_sequences(indexed_ner, padding="post", value=ner2idx['<PAD>'],
                                maxlen=max_context_length, truncating='post')
 
-    dict_ner = dict(zip(tmp_df1.context, padded_ner))
-    ner_tmp = df.context.apply(lambda x: dict_ner.get(x))
+    dict_ner = dict(zip(contexts_df1.context, padded_ner))
+    ner_tmp = df1.context.apply(lambda x: dict_ner.get(x))
     ner = np.array([t.tolist() for t in ner_tmp])
-    if return_nertags:
+
+    if debug:
         return ner, nertags
     return ner
-
-
-
-
-
-
-
-
 
 
 def get_char_embeddings(word_listing, word_to_idx):
@@ -546,7 +504,9 @@ def computing_predictions(model, df, x, batch_size):
 
 def evaluate_model(model, max_context_length, truth_df, x, batch_size=BATCH_SIZE):
     """
-    Compute our model evaluation
+    Compute evaluation by using the indices of the relevant/retrieved tokens
+    Compute average precision, recall and f1 score.
+
     @param model: model
     @param max_context_length: maximum context length
     @param truth_df: ground truth dataframe (preprocessed 1)
@@ -573,7 +533,6 @@ def evaluate_model(model, max_context_length, truth_df, x, batch_size=BATCH_SIZE
 
     # shared mask: element-wise multiplication between truth mask and predictions mask
     shared_mask = tf.math.multiply(truth_mask, predictions_mask)
-    #shared_mask = shared_mask.astype('int16)
 
     # number of shared indices (relevant and retrieved)
     shared = np.sum(shared_mask, axis=-1)
