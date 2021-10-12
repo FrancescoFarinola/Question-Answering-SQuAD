@@ -87,10 +87,10 @@ class MergeG(layers.Layer):
         super(MergeG, self).__init__(**kwargs)
 
     def call(self, inputs, **kwargs):
-        H, U_, H_, em, pos, ner, tfidf = inputs
+        H, U_, H_, em, pos, ner, tf = inputs
         HU_ = H * U_
         HH_ = H * H_
-        return K.concatenate([H, U_, HU_, HH_, em, pos, ner, tfidf])
+        return K.concatenate([H, U_, HU_, HH_, em, pos, ner, tf])
 
     def get_config(self):
         config = super(MergeG, self).get_config()
