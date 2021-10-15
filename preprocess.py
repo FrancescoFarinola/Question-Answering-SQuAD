@@ -1,3 +1,7 @@
+"""
+Functions used to apply preprocessing operations to data
+"""
+
 import pandas as pd
 import nltk
 import spacy
@@ -43,6 +47,8 @@ def expand_contractions(text):
     # string operation
     text = text.replace('\\r', ' ')
     text = text.replace('\\n', ' ')
+
+    # return text without contractions
     return text
 
 
@@ -65,6 +71,8 @@ def expand_contractions2(text):
     # string operation
     text = text.replace('\\r', ' ')
     text = text.replace('\\n', ' ')
+
+    # return text with splitted contractions
     return text
 
 
@@ -181,6 +189,7 @@ def apply_preprocessing(df, pipeline, text=True):
     # substitute not_preprocessed_context with preprocessed_context
     df.context = df.context.apply(lambda x: dict_context.get(x))
 
+    # if text is True apply preprocessing also on 'text' column
     if text:
         df['text'] = df['text'].apply(lambda x: preprocessing(x, pipeline))
 

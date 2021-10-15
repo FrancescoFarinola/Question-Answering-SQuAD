@@ -1,3 +1,7 @@
+"""
+Compute answers given a file json containing contexts and questions
+"""
+
 import numpy as np
 from os.path import isfile
 import sys
@@ -88,17 +92,23 @@ if __name__ == '__main__':
     contexts = pd.DataFrame(df.context.unique(), columns=['context'])
     ner_input = utils.compute_ner(df1, contexts_df1, contexts, ner2idx, MAX_CONTEXT_LENGTH)
 
+    # input to the model
     x = {'context': context_padded, 'question': question_padded, 'pos': pos_input,
          'ner': ner_input, 'em': em_input, 'tf': tf_input}
 
+    # char embedding matrix
     char_embedding_matrix = np.load(f'{MODELS_DIR}/char_embedding_matrix.npz')['matrix']
+
+    # build the model
     model = our_model.build_model(MAX_QUESTION_LENGTH, MAX_CONTEXT_LENGTH, EMBEDDING_DIM, embedding_matrix,
                                   char_embedding_matrix, pos_embedding_matrix, ner_embedding_matrix)
     # load model weights
     model.load_weights(f"{MODELS_DIR}/our_model_weights.h5")
 
-    # compute and save predictions
+    # compute predictions
     predictions = utils.computing_predictions(model, df, x, BATCH_SIZE)
+
+    # save predictions
     print("Saving predictions as json...")
     with open(predictions_file, 'w') as outfile:
         json.dump(predictions, outfile)
