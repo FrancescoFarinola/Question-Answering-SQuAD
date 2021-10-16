@@ -18,7 +18,7 @@ import pandas as pd
 from settings import MAX_CONTEXT_LENGTH, MAX_QUESTION_LENGTH, MODELS_DIR, BATCH_SIZE, EMBEDDING_DIM
 
 if __name__ == '__main__':
-    # name of the input file
+    # path to the input file
     path_to_file = str(sys.argv[1])
     try:
         assert isfile(path_to_file)
