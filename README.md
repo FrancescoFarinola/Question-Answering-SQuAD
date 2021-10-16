@@ -2,6 +2,16 @@
 
 Michele Vece & Francesco Farinola
 
+The repository contains the following:
+* `report_nlp`: the report of the project;
+* `compute_answers.py`: returns the predictions, given a json file (and optionally the name of the output file);
+* `predictions.json`: predictions for the whole `training_set.json`  
+* `main_for_training.ipynb`: notebook used to train the model;
+* `analysis_of_results.ipynb`: notebook used to analyse the predictions (the results are in the report);
+* `our_model.py`:the model;
+* `load_data.py`, `preprocess.py`, `settings.py`, `utils.py`: auxiliary modules used in the project.
+
+
 Version:
 
      Python 3.9.7
