@@ -8,7 +8,7 @@ The repository contains the following:
 * `predictions.json`: predictions for the whole `training_set.json`  
 * `main_for_training.ipynb`: notebook used to train the model;
 * `analysis_of_results.ipynb`: notebook used to analyse the predictions (the results are in the report);
-* `our_model.py`:the model;
+* `our_model.py`: the model;
 * `load_data.py`, `preprocess.py`, `settings.py`, `utils.py`: auxiliary modules used in the project.
 
 
